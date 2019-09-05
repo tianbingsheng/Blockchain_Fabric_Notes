@@ -1,0 +1,73 @@
+1、到golang.org 下载go1.4 编译好的Linux 版本 。 （例如go1.4.3.linux-amd64.tar）
+2、到root用户下，将go1.4解压到root/目录下，命名为go1.4
+3、定义环境变量
+export GOROOT_BOOTSTRAP=~/go1.4
+export GOARCH="amd64"
+export GOOS="linux"
+export GOHOSTARCH="amd64"
+export GOHOSTOS="linux"
+export GOROOT=/opt/go
+export GOPATH=/opt/gopath
+export GOBIN=$GOROOT/bin
+export GO15VENDOREXPERIMENT=1
+export PATH=${PATH}:$GOPATH/bin
+export PATH=${PATH}:$GOROOT/bin
+export CGO_ENABLED=0
+
+
+Mac设置
+export GOROOT_BOOTSTRAP=~/go1.4
+export GOROOT=/opt/go
+export GOPATH=/opt/gopath
+
+export GOARCH="amd64"
+export GOOS="darwin"
+export GOHOSTARCH="amd64"
+export GOHOSTOS="darwin"
+export GOBIN=$GOPATH/bin
+export GO15VENDOREXPERIMENT=1
+export PATH=$GOPATH/bin:${PATH}
+export PATH=$GOROOT/bin:${PATH}
+export CGO_ENABLED=0
+
+4、下载golang+sm版本git clone ssh://git@git.chainnova.com:7999/blockchain/golang1.10-addsm-plana.git"
+pbcopy < ~/.ssh/id_rsa.pub
+放到/opt/go目录
+5、后续步骤参考ppt
+进入到/opt/go/src 执行 ：     cvvsdkl7
+
+（下载wiki上对应的1.4版本，但是里面没有bin目录，./make.bash ，生成相对应的bin目录，把生成的bin目录移植到go1.4刚才生成的目录当中）
+（如果执行还报错，暂时执行./bootstrap.bash ;./make.bash ）
+
+6、编译完成goland之后，返回opt，执行
+    git clone ssh://git@git.chainnova.com:7999/blockchain/fabric-baseimage-0.4.10-addsm-plana.git
+   下载编译fabric-baseimage镜像..
+
+7.然后进入到fabric-baseimage-0.4.10-addsm-plana 里面，执行make & (后台运行)
+
+8 .下载增加sm算法的fabric源码,下载到相对应的的gopath目录下面
+  git clone ssh://git@git.chainnova.com:7999/blockchain/fabric1.2.0-addsm-plana.git .  然后修改其名称为fabric
+,然后进入fabric执行make操作
+
+9.下载fabric-ca-addsm源码
+  git clone  ssh://git@git.chainnova.com:7999/blockchain/fabric-ca-1.2.0-addsm-plana.git  ,修改名称为fabric-ca，
+然后执行make 操作
+
+10 -下载示例fabric-addsm-sample
+git  clone ssh://git@git.chainnova.com:7999/blockchain/fabric-addsm-samples-1.2.0.git
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
