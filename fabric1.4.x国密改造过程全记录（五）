@@ -1,0 +1,50 @@
+2  common
+
+
+common文件夹下需要修改crypto和tools
+
+2.1 common\crypto
+
+2.1.1 common\crypto\tlsgen\ca.go
+
+2.1.2 common\crypto\tlsgen\key.go
+
+
+
+2.2 common\tools
+
+工具的修改，包括cryptogen、idemixgen。
+
+以下是对cryptogen工具的修改
+
+2.2.1 common\tools\cryptogen\ca\generator.go
+
+
+	
+// round minute and backdate 5 minutes
+notBefore := time.Now().Round(time.Minute).Add(-5 * time.Minute).UTC()  -------------------origin
+
+// backdate 5 min
+notBefore := time.Now().Add(-5 * time.Minute).UTC() .     ---------modify (版本更改)    时间戳
+此处应该是版本更新的修改,和国密没关系！
+
+
+2.2.2 common\tools\cryptogen\csp\csp.go
+
+注意：此处github.com/pkg/errors 不能去掉 引入包
+
+2.2.3 common\tools\cryptogen\msp\generator.go
+
+
+
+2.2.4 common\tools\cryptogen\main.go
+
+2.2.5 common\tools\idemixgen\idemixca\idemixca.go
+
+以下是对idemixgen工具的修改
+
+2.2.6 common\tools\idemixgen\idemixgen.go
+
+
+
+common文件就修改到这。
