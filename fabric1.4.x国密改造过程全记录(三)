@@ -1,0 +1,38 @@
+1.4 bccsp/sw
+
+
+可见需要修改7个文件，新增4个文件。
+
+1.4.1 bccsp\sw\conf.go
+
+设置hash sm3算法安全等级
+
+1.4.2 bccsp\sw\ecdsa.go
+
+注释ecdsa算法 私钥签名 公钥验签
+
+1.4.3 bccsp\sw\fileks.go
+
+增加sm2 sm4国密选项
+
+1.4.4 bccsp\sw\keyderiv.go
+
+
+国密 密钥派生 接口暂时未实现
+1.4.5 bccsp\sw\keygen.go
+
+
+
+国密密钥产生接口实现 ， 同济版本国密加密库
+
+1.4.6 bccsp\sw\keyimport.go
+
+
+国密密钥导入 sm2
+
+1.4.7 bccsp\sw\new.go
+
+
+增加国密配置密钥选项
+
+bccsp/sw 文件夹修改完成。
