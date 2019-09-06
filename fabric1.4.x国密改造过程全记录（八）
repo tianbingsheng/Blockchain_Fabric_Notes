@@ -1,0 +1,9 @@
+5 idemix
+
+idemix文件夹下有2个文件需要修改。
+5.1 idemix\revocation_authority.go
+
+
+5.2 idemix\signature.go
+
+
