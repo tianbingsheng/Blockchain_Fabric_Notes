@@ -1,0 +1,7 @@
+4 gossip
+gossip文件夹下有两个文件需要修改。
+4.1 gossip/comm
+4.1.1 gossip\comm\comm_impl.go
+
+4.1.2 gossip\comm\crypto.go
+
