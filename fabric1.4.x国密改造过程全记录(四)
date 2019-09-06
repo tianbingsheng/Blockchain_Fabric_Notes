@@ -1,0 +1,25 @@
+1.5 bccsp/utils
+修改两处文件，新增一个文件
+1.5.1  bccsp/utils/ecdsa.go
+
+
+1.5.2 bccsp/utils/keys.go
+
+
+新增文件bccsp/utils/sm2.go
+1.6 bccsp/
+
+有两个文件需要修改。
+1.6.1 bccsp\hashopts.go
+
+
+增加国密hash sm3配置选项
+
+1.6.2 bccsp\opts.go
+
+
+
+增加国密配置项 sm2 ，sm3 ，sm4
+
+bccsp文件夹总算是修改完了。
+
