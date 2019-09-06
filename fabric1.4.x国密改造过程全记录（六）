@@ -1,0 +1,39 @@
+3 core
+
+
+core/chaincode内有一个文件需要修改。
+core/comm 文件夹内有6个文件需要修改。
+core/peer 文件夹内有1个文件需要修改。
+
+3.1 core/chaincode
+3.1.1 core\chaincode\accesscontrol\mapper.go
+
+3.2 core/comm
+3.2.1 core\comm\client.go
+
+
+3.2.2 core\comm\config.go
+
+
+3.2.3 core\comm\connection.go
+
+
+3.2.4 core\comm\creds.go
+
+
+
+3.2.5 core\comm\server.go
+
+
+
+3.2.6 core\comm\util.go
+
+
+注意：此文件有更新，只要把此文件中的x509都改为sm2即可。
+
+3.3 core/peer
+
+3.3.1 core\peer\config.go
+
+
+core文件夹就这些需要修改的
