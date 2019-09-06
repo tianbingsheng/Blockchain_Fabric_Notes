@@ -1,0 +1,13 @@
+9 vendor
+
+9.1 vendor\github.com\Shopify\sarama\broker.go
+
+9.2 vendor\github.com\Shopify\sarama\config.go
+
+
+
+9.3 拷贝vendor/github.com/tjfoc/ 整个文件夹，不要用govendor工具，因为gwanted有对tjfoc项目进行修改。
+
+到此为止fabric工程国密改造初步完成，可以拿去测试啦！
+
+https://github.com/dddengyunjie/fabric
