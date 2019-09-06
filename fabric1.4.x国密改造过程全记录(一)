@@ -1,0 +1,45 @@
+fabric1.4.x国密改造过程全记录（一）
+对hyperledger进行国密改造，上网查资料，但却没找到现成的，只能站在巨人的肩膀上自己改啦，在github搜到对自己有用的源码，一、https://github.com/tjfoc/hyperledger-fabric-gm（同济研究院基于fabric1.0.x，版本过于陈旧，大家也都是基于他的思路来修改的），二、https://github.com/gwanted/fabric-gm（基于fabric1.4.0-rc2改造，已经非常接近正确答案了，只要研究下他怎么改的，再在最新版本的基础上修改就好了）。这篇文章算是对自己修改过程的总结，也为其他需要国密改造的同学们指条明路，少绕点弯。
+
+过程如下：
+
+一、用beyond compare对比https://github.com/gwanted/fabric-gm的代码和fabric官网上fabric-1.4.0-rc2版本源码的区别，找到需要修改的点。下面罗列出来：
+
+1 bccsp文件夹
+
+1.1 bccsp/factory
+
+需要修改的文件有5个
+
+1.1.1 修改bccsp/factory/factory.go
+修改如图
+
+
+
+1.1.2 新增bccsp/factory/gmfactory.go
+
+1.1.3 修改bccsp/factory/nopkcs11.go
+
+
+
+1.1.4 修改bccsp/factory/opts.go
+
+
+1.1.5 修改bccsp/factory/pkcs11.go
+
+
+
+bccsp/factory 文件夹需要修改的就这些。
+
+1.2 新增bccsp/gm文件夹
+
+
+
+
+
+
+
+
+
+
+
