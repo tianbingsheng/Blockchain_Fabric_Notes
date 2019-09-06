@@ -1,0 +1,26 @@
+6 msp
+msp文件夹需要修改5个文件。
+
+6.1 msp\cert.go
+
+
+
+6.2 msp\identities.go
+
+
+
+6.3 msp\mspimpl.go
+
+
+
+6.4 msp\mspimplsetup.go
+
+
+
+
+6.5 msp\mspimplvalidate.go
+
+
+
+msp文件夹的修改结束
+
