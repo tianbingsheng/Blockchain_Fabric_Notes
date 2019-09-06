@@ -1,0 +1,11 @@
+7 orderer
+orderer文件夹下有两个文件需要修改。
+
+7.1 orderer\common\cluster\connections.go
+
+
+
+7.2 orderer\consensus\kafka\config.go
+
+
+orderer文件夹修改完成。
