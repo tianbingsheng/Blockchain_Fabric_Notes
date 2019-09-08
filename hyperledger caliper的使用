@@ -1,0 +1,82 @@
+Caliper是一个区块链性能评估框架，它允许使用者通过预定义使用用例来测试不同的区块链解决方案，并获得一组性能测试结果。
+
+目前支持的区块链解决方案有：
+
+Hyperledger Burrow
+Hyperledger Composer
+Hyperledger Fabric
+Hyperledger Iroha
+Hyperledger Sawtooth
+目前支持的性能指标有：
+
+Success rate （成功率）
+Transaction/Read throughput（交易吞吐量）
+Transaction/Read latency(minimum, maximum, average, percentile)（交易延时，包括最大值、最小值、平均值、百分比）
+Resource consumption (CPU, Memory, Network IO,…)（资源消耗，包括CPU、内存、网络IO等）
+准备：
+
+保证以下工具正确安装
+
+NodeJS 8 (LTS), 9, or 10 (LTS) 我们不支持更高版本因为依赖链不支持
+node-gyp
+Docker
+Docker-compose
+编译Caliper
+
+Caliper被分成了packages，使用Lerna管理，Lerna是一个管理JavaScript 多个packages工程的工具，为了编译Caliper，
+
+要先拉取需要的依赖库，然后引导（bootstrap）Caliper工程。注意如果你修改了任何基本代码（base code），就有必要重新编译一次工程。
+
+在Caliper 根目录下执行 npm install，在本地安装基本依赖库
+在Caliper 根目录下执行 npm run repoclean 确保所有的包是干净的
+执行 npm run bootstrap 去引导 包在Caliper仓库中（Run npm run bootstrap to bootstrap the packages in the Caliper repository）。 这将会安装所有的包依赖和链接任何交叉依赖。完成安装需要一些时间。如果按ctrl+c键中断，请先恢复package.json文件，然后再执行npm run bootstrap。
+不要带上sudo执行以上的三个命令，因为它可能会引起bootstrap过程失败。
+
+运行一个Benchmark
+
+Benchmark可以使用Caliper CLI来运行。我们准备发布Caliper包到npm上。
+
+安装Caliper CLI：
+
+我们还没有发布Caliper到npm上，但是可以通过我们的测试脚本获得Caliper CLI，脚本位置<CaliperRoot>/packages/caliper-tests-integration/scripts/run-integration-tests.sh。这个测试脚本需要设置一个环境变量为了选择一个指定的适配器，请注意这只是out CI系统的一个要求。
+
+步骤：
+
+如果你还没编译Caliper工程，请根据上面的步骤编译好。
+为了获得Caliper CLI，在Caliper根目录下运行以下命令
+export BENCHMARK=fabric-ccp
+./packages/caliper-tests-integration/scripts/run-integration-tests.sh
+The above will start an npm proxy server (Verdaccio), publish the Caliper modules to the server, globally install the packages, and finally run a traget benchmark. The result of the benchmark is not important at this time; if the benchmark commences, then you have the Caliper packages installed globally on the machine that issued the command. 
+
+目前Caliper支持以下适配器:
+
+Burrow: @monax/burrow@0.23.0
+Composer: composer@0.20.8
+Fabric: fabric-client@1.4.0
+Iroha: iroha-helpers@0.6.3
+Sawtooth: sawtooth-sdk@1.0.5
+Compatibility List:
+
+DLT	Client Compatibilty
+Fabric v1.0	grpc@1.10.1 fabric-ca-client@1.1.0 fabric-client@1.1.0
+Fabric v1.1	grpc@1.10.1 fabric-ca-client@1.1.0 fabric-client@1.1.0
+Fabric v1.2	fabric-ca-client@1.4.0 fabric-client@1.4.0 fabric-network@1.4.0
+Fabric v1.3	fabric-ca-client@1.4.0 fabric-client@1.4.0 fabric-network@1.4.0
+Fabric v1.4	fabric-ca-client@1.4.0 fabric-client@1.4.0 fabric-network@1.4.0
+假如你想测试 Hyperledger Fabric v1.1, 就需要修改 caliper-fabric-ccp 适配器，使用 grpc@1.10.1, fabric-ca-client@1.1.0, fabric-client@1.1.0.
+
+Note: When the Caliper packages are published to npm, we will be publishing versions for the above compatibility requirements and will update the compatibility table with published Caliper versions that you will be able to obtain using npm install -g caliper-<package>@<version>
+
+运行一个Benchmark示例：
+
+所有预定义的 benchmarks 都能在benchmark 文件夹里找到. The Caliper CLI has the notion of a workspace, which contains your benchmark configuration and test files.
+
+使用Caliper CLI 命令行执行Benchmark
+
+caliper benchmark run -w <path to workspace> -c <benchmark config> -n <blockchain config>
+-w : path to a workspace directory (required)
+-c : relative path from the workspace to the benchmark configuration file (required).
+-n : relative path from the workspace to the config file of the blockchain network under test (required).
+假设你在caliper根目录下，以下命令会执行一个测试案例：
+
+caliper benchmark run -w ./packages/caliper-samples -c benchmark/simple/config.yaml -n network/fabric-v1.4/2org1peercouchdb/fabric-ccp-node.yaml
