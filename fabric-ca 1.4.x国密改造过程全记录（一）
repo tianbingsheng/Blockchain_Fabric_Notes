@@ -1,0 +1,20 @@
+利用beyond compare对比源码https://github.com/hyperledger/fabric-ca/tree/v1.4.0-rc2和https://github.com/gwanted/fabric-ca-gm-edit/tree/v1.4.0的差别，记录下需要修改哪些地方。
+
+1 cmd
+可见cmd文件夹下需要修改两个文件。
+
+1.1.1 cmd\fabric-ca-client\command\config.go
+
+
+ecdsa->gmsm2
+
+1.1.2 cmd\fabric-ca-client\command\getcainfo.go
+
+
+此处原来是x509，要改成sm2
+
+1.2 cmd\fabric-ca-server\config.go
+
+
+
+ecsda->gmsm2
