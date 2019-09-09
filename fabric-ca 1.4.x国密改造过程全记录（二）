@@ -1,0 +1,29 @@
+2 lib
+2.1 新增文件夹 lib/gmtls
+2.2 lib/server
+lib/server需要修改的文件有6个。
+
+2.2.1  lib\server\idemix\mocks\Lib.go
+
+
+2.2.2 lib\server\idemix\mocks\RevocationAuthority.go
+
+
+
+2.2.3 lib\server\idemix\idemixlib.go
+
+
+
+2.2.4 lib\server\idemix\issuer.go
+
+
+
+2.2.5 lib\server\idemix\revocationauthority.go
+
+
+2.2.6 lib\server\idemix\revocationkey.go
+
+
+2.3.1 util/util.go
+
+增加红框部分，此处用genECDSAToken函数来获取sm2加密的证书token，试了是行得通的，不知道底层的理论支撑是怎样的
