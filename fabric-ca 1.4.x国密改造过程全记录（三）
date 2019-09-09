@@ -1,0 +1,24 @@
+2.3 lib/
+暂时test文件就不修改了，后期有时间再考虑，如果对fabric-ca熟悉的同学可以自行修改。
+2.3.1 lib/ca.go
+
+
+关于GetKeyRequest函数不需要修改，官方已经更新成可配置的了。
+2.3.2 lib/client.go
+
+
+2.3.3 新增lib/gmca.go
+
+2.3.4 lib/server.go
+
+
+2.3.4 lib/serverenroll.go
+
+
+
+2.3.5 lib/servertcert.go
+
+
+
+2.3.6 lib/util.go
+
