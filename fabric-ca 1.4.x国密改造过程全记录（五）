@@ -1,0 +1,4 @@
+5 vendor文件夹处理
+复制vendor
+更新 vendor\golang.org\x\crypto\internal
+修改结束，最后附上源码地址https://github.com/dddengyunjie/fabric-ca
