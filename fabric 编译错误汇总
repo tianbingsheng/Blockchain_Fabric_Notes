@@ -1,0 +1,95 @@
+fabric编译
+编译的过程会联网，需要翻墙。
+
+编译前会用curl下载一个.jar文件，可以提前准备好：
+
+curl -fL https://nexus.hyperledger.org/content/repositories/releases/org/hyperledger/fabric/hyperledger-fabric/chaintool-1.0.0/hyperledger-fabric-chaintool-1.0.0.jar > build/bin/chaintool
+编译：
+
+go get github.com/hyperledger/fabric
+cd $GOPATH/src/github.com/hyperledger/fabric
+make 
+可以用GOARCH和GOOS指定目标平台，用CGO_FLAGS表示是否启用cgo：
+
+GOARCH=adm64 GOOS=linux make 
+如果提示找不到protoc-gen-go:
+
+cp: build/docker/gotools/bin/protoc-gen-go: No such file or directory
+将protoc-gen-go复制过去：
+
+cp gotools/build/gopath/bin/protoc-gen-go   build/docker/gotools/bin/protoc-gen-go
+如果还是找不到protoc-gen-go文件，到gotools目录下执行make:
+
+cd gotools/
+make         //需要翻墙，会从golang.org下载代码golang.org/x/lint
+在linux上编译时如果报错找不到”ltdl.h”，需要安装ltdl。
+
+# github.com/hyperledger/fabric/vendor/github.com/miekg/pkcs11
+vendor/github.com/miekg/pkcs11/pkcs11.go:26:18: fatal error: ltdl.h: No such file or directory
+ #include <ltdl.h>
+				  ^
+compilation terminated.
+ 
+yum install libtool-ltdl-devel
+apt install libltdl3-dev
+如果在mac上遇到下面的错误：
+
+Step 3/5 : ADD payload/goshim.tar.bz2 $GOPATH/src/
+failed to copy files: Error processing tar file(bzip2 data invalid: bad magic value in continuation file):
+make: [build/image/ccenv/.dummy-x86_64-1.0.7-snapshot-ac3fabd] Error 1
+需要安装gnu-tar，用gnu-tar替换mac默认的bsdtar，可以用brew list gnu-tar找到gnu-tar的位置:
+
+$ brew install gnu-tar --with-default-names
+$ export PATH="/usr/local/Cellar/gnu-tar/1.32/libexec/gnubin/:$PATH"             //注意版本号
+
+需要make clean 一下
+$ which tar
+/usr/local/Cellar/gnu-tar/1.32/libexec/gnubin//tar
+
+
+Got it, needed to manually add a "gnubin" directory to the PATH
+PATH="/usr/local/opt/gnu-tar/libexec/gnubin:$PATH"
+
+编译过程中会生成多个镜像，以及联网下载多个文件，需要较长的时间。编译完成后，会得到下面的二进制文件：
+
+
+
+
+
+$ ls build/bin/
+chaintool     configtxgen   configtxlator cryptogen     orderer       peer
+chaintool是编译过程中使用的工具，Farbic主要由下面的程序组成：
+
+configtxgen             //用于生成配置文件、创世区块，存放在channel-artifacts目录中
+configtxlator           //用于将fabric的数据在json和protobuf格式之间转换
+cryptogen               //用于为网络的参与者生成证书，存放在crypto-config目录中
+orderer                 //用于形成共识
+peer                    //用于peer操作管理，包含5个不同用途的子命令
+order(Hyperledger Fabric Ordering Service)是用来形成共识的，这里的共识就是交易的顺序。当前版本(1.0.6)支持三种共识方式：
+
+Solo，只部署一个order，因为只有一个order，所以不需要进行共识协商，仅用于测试
+Kafka-based，使用kafka的发布/订阅功能进行排序，存在拜占庭将军问题(Byzantine failures)
+PBFT，正在开发中，能够应对拜占庭将军问题
+每个order中都存放一份账本，当前版本(1.0.6)支持三种账本格式：
+
+File Ledger，存放在本地的levelDB数据库文件中，可用于生产
+RAM Ledger, 在内存中保留最近一端时间内的交易记录，可用于测试
+JSON Ledger，以json文件的方式存放，正在开发中
+peer是最常用的管理命令，Hyperledger Fabric: Peer Commands，包括5个子命令：
+
+peer chaincode : 对链进行操作
+peer channel   : channel相关操作
+peer logging   : 设置日志级别
+peer node      : 启动、管理节点
+peer version   : 查看版本信息
+
+
+failed to copy files: Error processing tar file(bzip2 data invalid: bad magic value in continuation file):
+make: *** [.build/image/orderer/.dummy-amd64-1.4.2-snapshot-c6cc550cb] Error 1
+
+I've solved this problem doing this commands:
+cd $GOPATH/src/github.com/hyperledger/fabric
+brew install gnu-tar --with-default-names
+brew install libtool
+make clean
+make peer
