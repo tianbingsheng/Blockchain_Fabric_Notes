@@ -1,0 +1,296 @@
+Fabric国密改造是个什么概念？我们来思考以下4个问题：
+
+为什么偏偏是密码算法？(WHY?)
+什么是国密算法？(WHAT?)
+改造切入点什么？(WHERE?)
+如何实现国密支持？(HOW?)
+1、为什么偏偏是密码算法？
+问： 为什么改造Fabric要从密码算法改造入手？
+
+答： 密码是解决网络与信息安全最有效、最可靠、最经济的方式，是维护网络与信息安全的核心技术和基础支撑。而密码算法在区块链系统中起着举足轻重的作用，说是没有密码没有BlockChain也不足为过。密码算法大体分为非对称，对称和哈希散列（摘要算法） 三个大的种类，不同种类的密码算法区块链系统的不同的地方都起到重要作用。
+
+我们主要通过个一个交易流(Transaction Flow)场景来解释整个过程：
+假设一个场景，这个场景包括两个主要角色，采购商黄世仁和农户杨白劳，他们在买卖萝卜。
+
+
+
+下面涉及很多密码学名词，想要具体了解这些名词可以看前面的章节《杨白劳黄世仁密码算法发展史》
+
+不想看的人可以通过以下图简单了解
+
+
+1.1、非对称算法的应用场景
+首先介绍非对称算法的使用场景。非对称算法在Fabric中主要提供签名验签 功能。签名验签工作存在于整个交易过程中，涉及到中间的每个节点。我们来看看整个交易生命周期中，签名验签是怎么发生作用的。
+
+背书什么意思？
+“背书”这个词源来自银行票据业务，是指票据转让时原持有人在票据背面加盖自己的印鉴证明该票据真实有效、如果有问题就可以找原持有人。
+
+采购商黄世仁去农户杨白劳家里采购萝卜。
+黄世仁采购完成后，开具了一张票据给农户杨白劳，并说明让农户杨白劳自己去银行那换钱。
+但农户杨白劳家离银行很远（银行在城镇中心，杨白劳在村里，两地距离很远），农户杨白劳不想去那么远换钱，
+而且刚好他也打算买点种子为下一年做准备（种子商就在村里），所以农户杨白劳找到了种子商刘三姐。
+农户杨白劳将种子买好，并将票据给了种子商。种子商刘三姐说，你这票据能兑换吗，万一兑换不成呢？
+于是，农户杨白劳就说，那我在支票后面签字证明，如果你领不到钱，就到我这来找我，我会补给你钱。
+通过以上例子，我们可以知道：背书就有在票据背面签字以表达对信用的加强和支持的意思。
+
+明星代言也是一种背书——_ 担保拍照更清晰，柔光双摄能不能照亮你的美就不确定了 _
+
+1.1.1 交易流程讲解
+客户端(Client)发起一个事务：在提交交易请求给背书节点时，需要在交易请求中附加自己对交易请求数据的签名
+
+我黄世仁发起交易想要买萝卜，我给这个交易签名，这个交易确实是由我发起的
+
+背书节点(endorsement) 验证签名&执行交易：首先需要验证客户端的发起的交易请求，验证请求的签名。并且会在执行完链码后，在响应数据里面附加上自己的背书签名
+
+
+黄世仁和杨白劳先看看签名真假，看看是不是真由黄世仁发起的 ；然后要作担保人签名，担保这个交易是真实有效的
+
+应用程序检查提案响应：收到背书查询查询结果后，需要也对背书查询查询结果进行验签。并且组装后发送给排序节点。
+
+
+我中介张三来看看这些个担保人签名是不是真的，防止阿猫阿狗冒充；然后还要看看他们的意向，是不是都同意或者不同意我发出的交易请求（虽然我也可以不检查，后面人会做这个）
+
+排序节点(orderer) 虽然并不会对交易内容进行验证，但是排序节点在出块的时候，在也会块上附上自己的签
+
+我管家李四对送来的那么多交易是不是真的，又或者担保人同意同意不感兴趣，我就是觉得这些交易单太乱了，我给按照时间排排序，然后签名告诉大家，这是我排的序
+
+交易被验证和提交 交易块被“交付”到通道上的所有peer。块内的交易被验证，以确保完成了背书策略。块中的事务被标记为有效或无效。
+
+黄世仁和杨白劳最后再检查下，看看是不是彼此都同意了这次交易。然后根据意向统计的结果，将这次交易标记为有效或者无效。
+
+提交节点(commitment) 在更新账本前，会对交易背书内容进行验证，包括其中验证背书签名内容。
+
+我大管家在入账前要再查查这些大佬担保不是的，看看是不是都同意，如果都同意就记入账单了
+
+可以看到整个生命周期中，客户端，背书节点，排序节点，提交节点都参与了签名或者验签工作。除此之外：
+
+验证证书链本身的时候，用到了非对称算法相关内容
+在建立TLS加密通道时，用到了非对称算法相关内容（值得注意的是，这部分和交易部分是相对独立的）。
+使用场景及支持算法
+使用场景：Propose transactions / Endorse transactions / Create block / TLS / Certificate validate
+
+支持算法：ECDSA / RSA
+
+1.2、哈希散列的应用场景
+介绍完非对称的应用场景，现在来看看哈希散列的应用场景。
+
+1.2.1 哈希散列有哪些特点？
+哈希（Hash）算法主要作用是将一段任意长度的数据，经过计算转换成一段定长的数据。
+
+几乎不能通过Hash的结果推导出原文。并且几乎没有可能找到两个不同的信息，对两个信息进行Hash计算之后得到相同的哈希值。
+作验证的时候是快速的，但逆向推出明文是基本不可能的。例如：有两条信息，可以很快速的计算出来它们各自的哈希值，并通过哈希值的比对，就可以判定出两条信息是否内容相同，但是几乎不可能从过哈希值计算出信息的原文。
+哈希函数的另外一个特性，难题友好性在区块链的工作量证明POW中起到很大作用。
+难题友好性，是指没有便捷的方法去产生一个满足特殊要求的哈希值。比如，比特币区块，在某个时期可能就是要求矿工计算到18个0开头的哈希值（后面可能越来越多的0），这通常需要一个非常大的计算量。
+
+1.2.2 哈希散列用在哪里？
+如果说非对称是交易的基础，那么哈希散列可以说是账本的基础。区块就是通过哈希进行来链接的。每个块都会包含前一个块的哈希值。
+
+HASH还在其他地方发挥重要作用，比如在进行签名前，需要对整个消息进行散列，满足签名入参的消息格式；一些产生unique ID的地方也用到了HASH，比如key的SKI值等。
+
+SKI：即Subject Key Identifier，主题密钥标识符
+
+
+
+使用场景及支持算法
+使用场景： Hash before Signature / Blocks chain each other via hash code / Generate unique id
+支持算法 ：SHA-256 / SHA-384 / SHA3-256
+
+1.3、对称算法的应用场景
+把对称算法放到最后来介绍，因为对称算法在整个Fabric中，确实没有核心应用点。
+
+使用场景及支持算法
+使用场景： 未在fabric核心中使用
+
+个别例子： chaincode加密示例
+这个例子在建议交易的时候，会在瞬态映射里面附上对称加密秘钥和IV，这样chaincode就可以对数据进行加解密处理。保证存储在账本的数据变成只有你和特定peer之间的“小秘密”
+支持算法 ：AES
+
+2、什么是国密算法？
+接下来是第二部分，第一部分介绍了为什么要从密码算法入手，了解了密码算法的重要性以及不同种类的密码算法的应用场景，接下来主要介绍国密算法的相关内容。
+
+首先回答一个问题：
+
+2.1、为什么要用做国密改造?
+网络安全形势不容乐观
+根据国家互联网应急中心发布的互联网安全威胁报告，仅17年12月，境内被篡改网站数量就达到了4,130个，国家信息安全漏洞共享平台（CNVD）收集整理的信息系统安全漏洞多达1,554个，互联网安全形势仍然很严峻。
+
+“国际通用”已不再安全
+越来越多的国际通用密码算法屡屡被传出被破解、被攻击的传闻，存在较高的安全风险。
+
+当前我国金融系统大多采用国外制定的加密算法，存在着大量的不可控因素，一旦被不法分子利用攻击，所产生的损失将不可估量。
+
+国密算法由我国自主研发，已是一些领域的准入门槛
+所以在结构中引入国密算法标准，对超级账本项目在国内的商业推广有很重要的作用。
+
+2.2、 简单介绍国密算法
+国密算法是国家通用密码算法的简称，是国家密码管理局制定的自主可控的国产算法，包括SM1、SM2、SM3 、SM4、SM7、SM9、祖冲之密码算法（ZUC)等。
+
+“SM”表示“商密”，即用于商用的、不涉及国家机密的密码技术
+
+在金融领域目前主要使用公开的SM2、SM3、SM4三种商用密码算法，恰好对应上一章的算法种类，分别为非对称加密算法、哈希算法和对称加密算法：
+
+SM2为基于椭圆曲线密码的公钥密码算法标准，包含数字签名、密钥交换和公钥加密，用于替换RSA / Diffie-Hellman / ECDSA / ECDH 等国际算法。
+SM3为密码哈希算法，用于替代MD5 / SHA-1 / SHA-256等国际算法。
+SM4为分组密码，用于替代DES / AES等国际算法。
+SM2，SM3，SM4现在是公开标准，可以在公开渠道获取到算法细则，网上也有不同语言版本的实现可以参考，原理也比较复杂，我们也无需重复造轮子，直接用别人的代码（我们使用苏州同济区块链研究院实现的代码）就可以了。等到有空的时候，再去研究到底是怎么回事。
+
+接下来，我们讲讲，从哪里着手进行国密支持改造。
+
+3、改造切入点是什么？
+答案是BCCSP 密码服务套件。
+
+
+
+BCCSP的全称是区块链密码服务提供者，它能够用来提供Fabric中加解密、签名校验相关功能。从上图中可以看到BCCSP通过Membership Service（成员服务提供者，现在独立来成为Fabric-CA）给相关核心功能和客户端SDK提供加密算法相关的服务。相关的核心功能集中在核心中，包括共识模块，背书模块等，在第一部分已经介绍了具体的业务场景。
+
+通过BCCSP，Fabric中的密码算法模块可以实现** 插件式**，多种实现方式和多种标准的适配。对国密算法的支持首先就要通过这个模块进行入手，后面讲国密算法支持会再次讲到这个部分。
+
+现在我们来看看BCCSP的接口具体提供了哪些功能。下面是BCCSP的接口集合:
+
+// BCCSP is the blockchain cryptographic service provider that offers
+// the implementation of cryptographic standards and algorithms.
+type BCCSP interface {
+// KeyGen generates a key using opts.
+KeyGen(opts KeyGenOpts) (k Key, err error)
+// KeyDeriv derives a key from k using opts.
+// The opts argument should be appropriate for the primitive used.
+KeyDeriv(k Key, opts KeyDerivOpts) (dk Key, err error)
+// KeyImport imports a key from its raw representation using opts.
+// The opts argument should be appropriate for the primitive used.
+KeyImport(raw interface{}, opts KeyImportOpts) (k Key, err error)
+// GetKey returns the key this CSP associates to
+// the Subject Key Identifier ski.
+GetKey(ski []byte) (k Key, err error)
+// Hash hashes messages msg using options opts.
+// If opts is nil, the default hash function will be used.
+Hash(msg []byte, opts HashOpts) (hash []byte, err error)
+// GetHash returns and instance of hash.Hash using options opts.
+// If opts is nil, the default hash function will be returned.
+GetHash(opts HashOpts) (h hash.Hash, err error)
+// Sign signs digest using key k.
+// The opts argument should be appropriate for the algorithm used.
+//
+// Note that when a signature of a hash of a larger message is needed,
+// the caller is responsible for hashing the larger message and passing
+// the hash (as digest).
+Sign(k Key, digest []byte, opts SignerOpts) (signature []byte, err error)
+// Verify verifies signature against key k and digest
+// The opts argument should be appropriate for the algorithm used.
+Verify(k Key, signature, digest []byte, opts SignerOpts) (valid bool, err error)
+// Encrypt encrypts plaintext using key k.
+// The opts argument should be appropriate for the algorithm used.
+Encrypt(k Key, plaintext []byte, opts EncrypterOpts) (ciphertext []byte, err error)
+// Decrypt decrypts ciphertext using key k.
+// The opts argument should be appropriate for the algorithm used.
+Decrypt(k Key, ciphertext []byte, opts DecrypterOpts) (plaintext []byte, err error)
+}
+代码路径 ：fabric/bccsp/bccsp.go
+
+可以看出，接口功能大体分成4类，即：
+
+1、秘钥生命周期管理
+KeyGen秘钥产生
+KeyDeriv秘钥派生
+KeyImport秘钥导入
+GetKey秘钥导出
+2、哈希散列管理
+散列哈希运算
+GetHash获取哈希功能
+3、签名验证管理
+签名功能
+验证验签功能
+4、加解密功能
+加密加密功能
+Decrypt解密功能
+Fabric的密码算法支持都是依赖上一页中的四类接口完成的，开发者可以设计不同的CSP来提供不同形式的密码算法支持。现在Fabric提供了两种CSP可供选择:
+
+SW模式 : 软件实现方案，通过golang的加密库，提供不同类型的算法软件实现
+pcks11模式 : 硬件对接方案，RSA提供的一套标准密码接口API，为实现了对应api接口的设备提供支持
+对于国密的支持，可以自己重新设计CSP，也可以根据上面两个现有模块进行定制支持。
+
+4、如何实现国密支持？
+最后一部分，介绍布国密支持的具体实现思路。
+
+4.1、国密支持关注点
+首先了解一下进行国密支持需要关注哪几个方面内容。分为4个层次：
+
+BCCSP
+算法实现
+X509证书支持
+秘钥相关内容。
+第一点BCCSP前面已经介绍了，可以通过改造sw和pkcs11部分工作，提供软件和硬件层面的支持。sw提供一套密码算法集，可以考虑在中间加入国密算法接口支持。
+
+第二点是国密算法具体的实现，上一章最后已经说过了，直接用别人的就可以了。
+
+第三点是X509证书支持，Fabric中证书创建和解析相关是加入Golang中的X509证书模块完成的，但是现在x509模块只支持RSA和ECDSA两种算法模式，所以如果直接引入原版的X509证书解析的话，在证书国密支持方面会比较棘手，这个问题可以通过重写x509文件或者在Fabric重新定义x509证书生成解析方法来解决。
+
+X509里面会根据OID来指定所使用的签名算法，签名参数等信息，这部分可以参考“GMT 0015-2012”规范附件部分定义。
+
+第四点是秘钥相关部分，其中包括通过证书封装的公匙部分，还有本地存储的私钥部分。特别注意到SW中算法是可以通过秘钥的类型来动态选择的，并且能够更灵活应用，带格式的秘密存储是有必要的。比如现在通过pkcs1来存储RSA密钥，通过pkcs8来存储ECDSA密钥，SM2和ECDSA结构类似，也可以参考使用PKCS8来进行格式存储。
+
+4.2、国密支持解决思路
+前面介绍了国密支持所需要关注的问题。除了BCCSP层面外，算法实现和X509证书支持Fabric是是直接引用的golang下面的标准库来支持的。
+
+而标准库并没有对国密算法进行支持，所以这里引出了两种思路。
+
+定制化golang环境： 将算法实现和X509国密支持部分放在golang的标准库上，这样Fabric层面的适配就会少很多。这种缺点的是golang部分需要做定制，特别是牵扯到用户环境还要同时考虑到本地和docker环境两种方式下，golang层面应该如何完成适配。
+
+一切交给Fabric: 把算法实现和X509的证书支持都放在Fabric层面来做。这种方式的好处是不用动golang的标准库，所有工作都收敛到Fabric上。但是缺点是X509的证书部分需要在上层做定制，所有引入证书的地方，都需要做调整。代码也会有较多冗余部分。
+
+下面讲下两种方法的实现思路。
+
+4.2.1、定制化golang环境
+这种方法好处在于，能够在不影响整个Fabric架构的前提下，更好的完成国密支持，并且可以进行动态配置需要使用的算法，不失灵活性。
+
+
+上图中所示为整个国密支持中，Fabric和golang lib层面所需要定制的部分。黄色代表需要修改部分，红色代表新增部分。
+
+上层为Fabric需要处理的模块，主要集中在BCCSP部分。下层为golang层面需要处理的模块，主要集中在crypto中。
+
+如果想在golang层面做支持的话，那么整个系统的构建环境就需要做一定的定制：
+
+对于本地的构建环境来说，需要将golang替换成国密版本支持的
+对于docker相关的，需要更改docker image中golang层的支持.Fabric中，对golang的支持，是放在fabric-baseimage中的.baseimage中，将特定版本的环境打包到镜像中，提供底层的支持。
+baseimage相关内容可以从官方仓库了解。
+
+4.2.2、一切交给Fabric
+目前我采用的是这种方案。
+
+先说不好的地方：
+
+代码升级不方便，因为需要Fabric的代码进行改造，后续官方版本增加新功能需要同步进行代码改造。据目前Fabric版本更新差异来看，版本之间，存在大量重构，做迁移比较麻烦。
+相比之下，如果采用定制化golang环境，由于升级go版本需求频率低于升级Fabric版本，且改动golang标准库代码相对轻松，结构清晰，在升级迁移的时候可以花费少量经历，更为灵活。。
+好处是：
+
+比定制化golang环境少打包.baseimage的docker镜像
+相对改变golang标准库来说，在多个golang项目存在的情况下更加安全
+完全在Fabric层实现改造，需要从以下三个方面着手：
+
+其一，把国密的库进行移植，封装gm-crypto；
+其二，扩展Fabric现有的bccsp模块；
+其三，修改x509证书相关的地方。
+综合考虑下两种实现方法，后期考虑做定制化golang方案
+
+4.3、外围支持
+除此之外，作为整个系统来看，Fabric做国密支持，也少不了外围的支持，包括Fabric-CA和Fabric-SDK。
+
+4.3.1 Fabric-CA国密改造
+
+
+Fabric-CA主要是为了实现对加入联盟链的成员的身份控制以及数据生成保管。
+
+CA：即Certificate authority，证书授权者。就是颁发证书的机构。
+
+CA可以考虑使用现有的国密CA系统，也可以考虑通过Fabric-CA来做搭建，目前采用后一种方案。
+
+改造CA主要改动如下几个包：
+
+Lib：主要是接口的实现，主要在解析申请证书请求以及签发证书流程要替换为国密算法；
+Util：该包数据工具类，主要在证书的编解码等操作中扩展国密算法；
+Vendor：因为CA沿用Fabric中的BCCSP套件，所以需要替换对Fabric的包的引用，提供对国密算法的支持。
+4.3.2 Fabric-SDK国密改造
+Fabric-SDK主要是一个区块链的大框架，每一个应用发布上去，可以调用我们提供的SDK的功能。而Client-SDK现在有很多种版本，所以有一些工作量在里面。好在每个版本的密码服务套件都是插件化的，可以从以下几个方面着手：
+
+API：主要是接口的定义
+PKG：主要是接口的实现
+Vendor：替换对Fabric包的引用，提供对国密算法的支持，这一点同CA类似。
