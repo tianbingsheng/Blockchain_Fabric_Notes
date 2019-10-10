@@ -1,0 +1,332 @@
+概述
+什么是docker-machine，简单来说就是给你快速创建一个docker容器环境的，怎么说呢，如果你要给100台阿里云ECS安装上docker，传统方式就是你一台一台ssh上去安装，但是有了docker-machine就不一样了，你可以快速给100台ecs安装上docker，怎么快速法呢，你看完这文章就知道了。还有就是你要在本地快读创建docker集群环境，我总不能一台一台创建虚拟机吧，所以docker-machine可以解决这个问题。总之docker-machine就是帮助你快速去创建安装docker环境的工具，这样说应该没什么问题吧
+
+安装
+linux下安装docker-machine
+
+首先下载二进制文件
+wget https://github.com/docker/machine/releases/download/v0.13.0/docker-machine-Linux-x86_64
+如果可以挂代理就挂代理，你懂的
+接着修改可执行权限
+chmod +x docker-machine-Linux-x86_64
+最后移动二进制文件到/usr/local/bin/目录下
+sudo cp docker-machine-Linux-x86_64 /usr/local/bin/docker-machine
+最后在命令行下测试下是不是可以使用了
+docker-machine -v
+记住官网下https://docs.docker.com/machine/install-machine/#install-machine-directly
+这个网址的安装命令有错，下载到二进制文件不能执行
+因为windows和mac用户的知识文化水平都比较高，所以我就不介绍了，玩docker还用windows那肯定是牛逼的人了。
+
+使用docker-machine来创建virtualbox虚拟机
+首先本地virtualbox肯定要安装好
+之后在命令行下输入下面命令就可以创建一个安装好docker的虚拟机
+docker-machine create -d virtualbox bboysoul
+这是创建一个安装好docker的虚拟机最简单的命令，当然，挂代理，不然下载虚拟机iso很慢，你懂的
+启动的时候可能会碰到这样的问题，就是处于(bboysoul) Waiting for an IP...会挺长时间的，不要急，你得给它一点机会，先等5分钟，如果还是不行，那么可能是网卡的问题，你就不用给机会了，电脑重启试一下吧，如果你使用无线网卡的话拔插无线网卡也可以。我就是无线网卡问题。
+
+之后你可以使用这个命令来看虚拟机的一些环境信息
+
+➜  ~  docker-machine env bboysoul
+export DOCKER_TLS_VERIFY="1"
+export DOCKER_HOST="tcp://192.168.99.100:2376"
+export DOCKER_CERT_PATH="/home/bboysoul/.docker/machine/machines/bboysoul"
+export DOCKER_MACHINE_NAME="bboysoul"
+# Run this command to configure your shell: 
+# eval $(docker-machine env bboysoul)
+如果你想进入虚拟机的话，你可以使用下面这个命令进入
+
+➜  ~ docker-machine ssh bboysoul
+                        ##         .
+                  ## ## ##        ==
+               ## ## ## ## ##    ===
+           /"""""""""""""""""\___/ ===
+      ~~~ {~~ ~~~~ ~~~ ~~~~ ~~~ ~ /  ===- ~~~
+           \______ o           __/
+             \    \         __/
+              \____\_______/
+ _                 _   ____     _            _
+| |__   ___   ___ | |_|___ \ __| | ___   ___| | _____ _ __
+| '_ \ / _ \ / _ \| __| __) / _` |/ _ \ / __| |/ / _ \ '__|
+| |_) | (_) | (_) | |_ / __/ (_| | (_) | (__|   <  __/ |
+|_.__/ \___/ \___/ \__|_____\__,_|\___/ \___|_|\_\___|_|
+Boot2Docker version 18.01.0-ce, build HEAD : 0bb7bbd - Thu Jan 11 16:32:39 UTC 2018
+Docker version 18.01.0-ce, build 03596f5
+docker@bboysoul:~$ 
+当然，你会觉得这样创建虚拟机是不是，有点草率？没错docker-machine不是一个简单的命令，你可以输入docker-machine create -d virtualbox --help
+比如说我要创建一个cpu为2核心内存为2048m的磁盘大小为30000的虚拟机，还有我要让docker的仓库地址为https://registry.docker-cn.com那么我就可以这样写
+
+docker-machine create -d virtualbox \ 
+--virtualbox-disk-size 30000 \
+--virtualbox-cpu-count 2 \
+--virtualbox-memory 2048 \
+bboysoul2
+我这次新建虚拟机的时候碰到了两个问题，一个是Waiting for an IP...一直获取不到ip，因为我是使用无线网卡的，那么我就拔了，然后关了创建的虚拟机，断网重新开就好了，第二是创建的时候Running pre-create checks...太慢了，用代理就ok，因为创建虚拟机的时候要连接github的，当我第一次可以获取ip之后，插上无线网卡，之后在插着无线网卡情况下重新开启虚拟机是可以获取到ip的，而且提示
+Started machines may have new IP addresses
+唉，真的搞不懂为什么啊，如果有知道的可以留言。
+虚拟机参数我们可以直接打开virtualbox来查看，创建好验证一下就好了
+如果你是其他平台的话，windows是使用hyperv，mac是使用xhyve，代替virtualbox就好了
+
+对了，我没有解释-d的意思-d就是驱动，为什么叫驱动呢，因为它的英文叫drive，所以就翻译成驱动了，但是我总觉得叫驱动不好，会误人子弟。官方支持的驱动有下面这些
+
+amazonec2
+azure
+digitalocean
+exoscale
+generic
+google
+hyperv
+none
+openstack
+rackspace
+softlayer
+virtualbox
+vmwarevcloudair
+vmwarefusion
+vmwarevsphere
+说白了都是虚拟化平台和云平台
+
+让docker-machine和阿里云搞cp
+安装阿里云的docker-machine驱动
+
+就virtualbox是本地环境，docker-machine还支持在云平台上安装docker，因为我没有信用卡，所以用不了google，aws，azure的主机，所以就使用阿里云介绍一下
+因为docker-machine是没有阿里云的驱动的，所以在使用阿里云的时候要使用阿里云开发的docker-machine驱动，下载地址在下面
+https://develop.aliyun.com/command/docker
+首先我们下载阿里云的docker-machine驱动
+wget "https://docker-machine-drivers.oss-cn-beijing.aliyuncs.com/docker-machine-driver-aliyunecs_linux-amd64.tgz?spm=5176.53439.201848.4.275254b5fog25&file=docker-machine-driver-aliyunecs_linux-amd64.tgz"
+
+可以看到链接显示了阿里云的这个工具是存储在北京的oss里的
+接着解压
+tar -xvf docker-machine-driver-aliyunecs_linux-amd64.tgz\?spm=5176.53439.201848.4.275254b5fog25\&file=docker-machine-driver-aliyunecs_linux-amd64.tgz
+解压完成后是一个bin目录里面有docker-machine-driver-aliyunecs.linux-amd64这个文件
+和阿里云文档说的那样，docker-machine要求驱动在系统路径下，最简单就是把它和docker-machine的二进制文件放在一个文件夹下，也就是/usr/local/bin目录下
+sudo cp docker-machine-driver-aliyunecs.linux-amd64 /usr/local/bin/docker-machine-driver-aliyunecs
+但是记住名字一定要改，后面amd64什么不能带，不然不能识别
+之后我们就可以使用这个驱动了
+
+在阿里云上创建docker主机
+
+首先我们有两种方式去告诉docker-machine我们要创建的主机是怎样的，比如磁盘大小，实例类型等，一种是把这些信息写入环境变量中，之后我们直接执行
+docker-machine create -d aliyunecs <machine-name>
+就可以创建出我们要的服务器
+第二种是使用命令参数，类似
+docker-machine create -d aliyunecs --aliyunecs-tag provider=aliyuncos --aliyunecs-tag version=1.0 --aliyunecs-disk-size=20 --aliyunecs-io-optimized=optimized --aliyunecs-description=aliyunecs-machine-driver --aliyunecs-instance-type=<InstanceType> --aliyunecs-access-key-id=<Your access key ID for the Aliyun ECS API> --aliyunecs-access-key-secret=<Your secret access key for the Aliyun ECS API> --aliyunecs-disk-category=<DiskCategory> --aliyunecs-region=<Region>--aliyunecs-ssh-password=<SSH Password> <machine-name>
+说真的两个方式都太麻烦了，给一个技巧，如果是使用环境变量这种方法的话可以先把环境变量写在一个文件里，然后使用source命令导入环境变量，之后执行命令，如果使用参数的话，那也得写下来，当shell脚本执行就好了，详细的参数什么的可以看下面这个网站
+https://github.com/AliyunContainerService/docker-machine-driver-aliyunecs?spm=5176.53439.201848.8.275254bQkZk10
+很多参数都是有默认的值，但是Access Key ID和Access Key Secret这两个要必须写的
+唉，那我就辛苦点，都执行一遍
+
+介绍一下开服务器的参数
+我发现网上，包括阿里云有的东西不全面，找了很久，我现在把阿里云docker-machine驱动的参数解释一下
+
+命令行参数	环境变量	默认值	备注
+--aliyunecs-access-key-id	ECS_ACCESS_KEY_ID	-	就是ACCESS KEY ID
+--aliyunecs-access-key-key	ECS_ACCESS_KEY_SECRET	-	就是access key key
+--aliyunecs-api-endpoint	ECS_API_ENDPOINT	-	这个是ecs服务接入地址，类似的在https://help.aliyun.com/document_detail/25489.html?spm=5176.doc25488.2.4.aT0cdI但是我没有找到上海的服务地址，貌似不写也可以
+--aliyunecs-description	ECS_DESCRIPTION	-	ecs的描述，没什么好说的
+--aliyunecs-disk-size	ECS_DISK_SIZE	-	ecs磁盘的大小，不是系统盘
+--aliyunecs-disk-category	ECS_DISK_CATEGORY	-	ecs的磁盘分类值可以在https://help.aliyun.com/document_detail/25382.html?spm=5176.ecsbuyv3.storage.2.12e576654niiVq这里看
+--aliyunecs-system-disk-size	ECS_SYSTEM_DISK_SIZE	-	系统盘大小
+--aliyunecs-system-disk-category	ECS_SYSTEM_DISK_CATEGORY	-	系统盘分类，值和磁盘分类一样，链接在上面自己看
+--aliyunecs-image-id	ECS_IMAGE_ID	-	ecs镜像id，我找这个找了很久，因为找的是公共镜像，公共镜像id在控制台，云服务器ECS，镜像，公共镜像里有
+--aliyunecs-aliyunecs-io-optimized	ECS_IO_OPTIMIZED	none	磁盘io优化，这个我不知道现在还有没有，以前有的，我今天没看到过
+--aliyunecs-instance-type	ECS_INSTANCE_TYPE	ecs.t1.small	实例类型购买地方有显示就是实例规格
+--aliyunecs-internet-max-bandwidth	ECS_INTERNET_MAX_BANDWIDTH	1	带宽，注意，这里的值没有数字，也就是说要加引号
+--aliyunecs-private-address-only	ECS_PRIVATE_ADDR_ONLY	false	这个true就表示你不要外网ip和带宽了
+--aliyunecs-region	ECS_REGION	cn-hangzhou	ecs地域
+--aliyunecs-route-cidr	ECS_ROUTE_CIDR	-	ecs的route cidr，这个我不懂，不设置没关系
+--aliyunecs-security-group	ECS_SECURITY_GROUP	-	安全组id这个去安全组找就好
+--aliyunecs-slb-id	ECS_SLB_ID	-	slb id，去slb找，如果你有的话
+--aliyunecs-ssh-password	ECS_SSH_PASSWORD	Random generated	ssh的密码
+--aliyunecs-tag	ECS_TAGS	-	ecstag，随便设置
+--aliyunecs-vpc-id	ECS_VPC_ID	-	ecs的vpc id去vpc找
+--aliyunecs-vswitch-id	ECS_VSWITCH_ID	-	虚拟交换机id，去vpc找
+--aliyunecs-zone	ECS_ZONE	-	可用区id，这个我没有找到，后来是用阿里云openapi explorer查出来的
+使用环境变量方式
+首先把环境变量这个文件准备好，登录阿里云，把自己的Access Key ID和Access Key Secret写下来，为了安全，我推荐不要使用主账号的Access Key ID和Access Key Secret，最好可以建立一个ram子账号，给子账号相关的权限，然后操作，这是最好的，或者你用主账号的也没有关系，用的时候创建，不用就删除这样子。
+找好我们在文件下添加两行
+
+export ECS_ACCESS_KEY_ID='<Your access key ID>'
+export ECS_ACCESS_KEY_SECRET='<Your secret access key>'
+接着我们选择实例的类型，因为是做测试，所以我选择按量的(貌似只能开按量服务器，不过开好你可以转成按月的)最垃圾的服务器就好了
+付费类型：按量付费
+地域：华东2(上海)
+可区：cn-shanghai-d
+实例类型：ecs.t5-lc2m1.nano
+cpu内存：一核心，0.5gb
+最大带宽：1m
+系统盘：40g，高效云盘
+镜像：coreos
+
+接着设置下安全组虚拟交换机什么的，参数总的如下
+
+export ECS_ACCESS_KEY_ID=''
+export ECS_ACCESS_KEY_SECRET=''
+export ECS_INSTANCE_TYPE='ecs.t5-lc2m1.nano'
+export ECS_INTERNET_MAX_BANDWIDTH='1'
+export ECS_REGION='cn-shanghai'
+export ECS_SSH_PASSWORD='Lovexiu520'
+export ECS_SYSTEM_DISK_SIZE='40'
+export ECS_SYSTEM_DISK_CATEGORY='cloud_efficiency'
+export ECS_IMAGE_ID='coreos_1465_8_0_64_30G_alibase_20171024.vhd'
+export ECS_VPC_ID='vpc-uf69wb7af3njhw9bbnqk8'
+export ECS_VSWITCH_ID='vsw-uf6u8cpl0ulbhbg5fbkv4'
+export ECS_TAGS='bboysoul_docker'
+export ECS_SECURITY_GROUP='sg-uf61dkll1qn5gsgr1ekq'
+export ECS_ZONE='cn-shanghai-d'
+export ECS_IO_OPTIMIZED='true'
+保存成文件然后用source命令导入环境变量
+source ./bboysoul
+接着开启虚拟机
+docker-machine create -d aliyunecs <machine-name>
+
+成功是下面这样子的
+
+➜  temp docker-machine create -d aliyunecs bboysoul
+Running pre-create checks...
+Creating machine...
+(bboysoul) bboysoul | Creating key pair for instance ...
+(bboysoul) bboysoul | Configuring security groups instance ...
+(bboysoul) bboysoul | Creating instance with image coreos_1465_8_0_64_30G_alibase_20171024.vhd ...
+(bboysoul) bboysoul | Create instance i-uf6e3icwjtndmsao0fhi successfully
+(bboysoul) bboysoul | Allocating Eip address for instance i-uf6e3icwjtndmsao0fhi ...
+(bboysoul) bboysoul | Associating Eip address eip-uf6pzzvr03ejx5v9h24rq for instance i-uf6e3icwjtndmsao0fhi ...
+(bboysoul) bboysoul | Starting instance i-uf6e3icwjtndmsao0fhi ...
+(bboysoul) bboysoul | Start instance i-uf6e3icwjtndmsao0fhi successfully
+(bboysoul) bboysoul | Waiting SSH service 106.14.0.160:22 is ready to connect ...
+(bboysoul) bboysoul | Uploading SSH keypair to 106.14.0.160:22 ...
+(bboysoul) bboysoul | Created instance i-uf6e3icwjtndmsao0fhi successfully with public IP address 106.14.0.160 and private IP address 192.168.1.207
+Waiting for machine to be running, this may take a few minutes...
+Detecting operating system of created instance...
+Waiting for SSH to be available...
+Detecting the provisioner...
+Provisioning with coreOS...
+Copying certs to the local machine directory...
+Copying certs to the remote machine...
+Setting Docker configuration on the remote daemon...
+Checking connection to Docker...
+Docker is up and running!
+To see how to connect your Docker Client to the Docker Engine running on this virtual machine, run: docker-machine env bboysoul
+开机器报了几个错误，我记录一下，一个是
+DependencyViolation.IoOptimized Message: The specified instancetype must be IoOptimized instance
+表示你一定要设置io优化的参数
+InvalidPassword.Malformed Message: The specified parameter "Password" is not valid.
+表示你的密码有问题，要大写字母小写字母数字都有
+
+接着执行
+docker-machine ssh bboysoul
+没错，可以进来
+
+➜  temp docker-machine ssh bboysoul
+Last login: Tue Jan 30 00:10:38 CST 2018 from 115.215.201.25 on ssh
+
+Welcome to Alibaba Cloud Elastic Compute Service !
+
+bboysoul ~ # 
+不知道为什么ip是弹性公网ip，很难受，是不是我做错了什么？所以删除服务器的时候要注意弹性公网ip，一般自动就会删除了
+如果创建失败可以用下面命令删除
+docker-machine rm bboysoul --force
+
+命令行参数开机器
+总的参数是下面这样子
+
+docker-machine create -d aliyunecs \
+--aliyunecs-access-key-id='' \
+--aliyunecs-access-key-secret='' \
+--aliyunecs-system-disk-size='40' \
+--aliyunecs-system-disk-category='cloud_efficiency' \
+--aliyunecs-image-id='coreos_1465_8_0_64_30G_alibase_20171024.vhd' \
+--aliyunecs-io-optimized='true' \
+--aliyunecs-instance-type='ecs.t5-lc2m1.nano' \
+--aliyunecs-internet-max-bandwidth='1' \
+--aliyunecs-region='cn-shanghai' \
+--aliyunecs-security-group='sg-uf61dkll1qn5gsgr1ekq' \
+--aliyunecs-ssh-password='Lovexiu520' \
+--aliyunecs-tag bboysoul=docker \
+--aliyunecs-vpc-id='vpc-uf69wb7af3njhw9bbnqk8' \
+--aliyunecs-vswitch-id='vsw-uf6u8cpl0ulbhbg5fbkv4' \
+--aliyunecs-zone='cn-shanghai-d' \
+bboysoul
+注意这里的--aliyunecs-tag写法是不一样的
+
+创建过程
+
+➜  ~ docker-machine create -d aliyunecs \
+--aliyunecs-access-key-id='' \
+--aliyunecs-access-key-secret='' \
+--aliyunecs-system-disk-size='40' \
+--aliyunecs-system-disk-category='cloud_efficiency' \
+--aliyunecs-image-id='coreos_1465_8_0_64_30G_alibase_20171024.vhd' \
+--aliyunecs-io-optimized='true' \
+--aliyunecs-instance-type='ecs.t5-lc2m1.nano' \
+--aliyunecs-internet-max-bandwidth='1' \
+--aliyunecs-region='cn-shanghai' \
+--aliyunecs-security-group='sg-uf61dkll1qn5gsgr1ekq' \
+--aliyunecs-ssh-password='Lovexiu520' \
+--aliyunecs-tag bboysoul=docker \
+--aliyunecs-vpc-id='vpc-uf69wb7af3njhw9bbnqk8' \
+--aliyunecs-vswitch-id='vsw-uf6u8cpl0ulbhbg5fbkv4' \
+--aliyunecs-zone='cn-shanghai-d' \
+bboysoul
+Running pre-create checks...
+Creating machine...
+(bboysoul) bboysoul | Creating key pair for instance ...
+(bboysoul) bboysoul | Configuring security groups instance ...
+(bboysoul) bboysoul | Creating instance with image coreos_1465_8_0_64_30G_alibase_20171024.vhd ...
+(bboysoul) bboysoul | Create instance i-uf68n9kyxczoz4iadkjw successfully
+(bboysoul) bboysoul | Allocating Eip address for instance i-uf68n9kyxczoz4iadkjw ...
+(bboysoul) bboysoul | Associating Eip address eip-uf6duc6fbs0x6vh392qgh for instance i-uf68n9kyxczoz4iadkjw ...
+(bboysoul) bboysoul | Starting instance i-uf68n9kyxczoz4iadkjw ...
+(bboysoul) bboysoul | Start instance i-uf68n9kyxczoz4iadkjw successfully
+(bboysoul) bboysoul | Waiting SSH service 106.14.224.72:22 is ready to connect ...
+(bboysoul) bboysoul | Uploading SSH keypair to 106.14.224.72:22 ...
+(bboysoul) bboysoul | Created instance i-uf68n9kyxczoz4iadkjw successfully with public IP address 106.14.224.72 and private IP address 192.168.1.209
+(bboysoul) bboysoul | Adding tags map[bboysoul:docker] to instance i-uf68n9kyxczoz4iadkjw ...
+Waiting for machine to be running, this may take a few minutes...
+Detecting operating system of created instance...
+Waiting for SSH to be available...
+Detecting the provisioner...
+Provisioning with coreOS...
+Copying certs to the local machine directory...
+Copying certs to the remote machine...
+Setting Docker configuration on the remote daemon...
+Checking connection to Docker...
+Docker is up and running!
+To see how to connect your Docker Client to the Docker Engine running on this virtual machine, run: docker-machine env bboysoul
+ssh进去
+
+➜  ~ docker-machine ssh bboysoul
+Last login: Tue Jan 30 00:42:28 CST 2018 from 115.215.201.25 on ssh
+
+Welcome to Alibaba Cloud Elastic Compute Service !
+
+bboysoul ~ # 
+搞定
+
+docker-machine 常用命令
+最后说一下常用命令把，其实也没什么好讲的，都在help里面有，下面都是docker-machine后加的命令就是docker-machine command
+
+active 查看活跃的 Docker 主机
+config 输出连接的配置信息
+create 创建一个 Docker 主机
+env 显示连接到某个主机需要的环境变量
+inspect 输出主机更多信息
+ip 获取主机地址
+kill 停止某个主机
+ls 列出所有管理的主机
+provision 重新设置一个已存在的主机
+regenerate-certs 为某个主机重新生成 TLS 认证信息
+restart 重启主机
+rm 删除某台主机
+ssh SSH 到主机上执行命令
+scp 在主机之间复制文件
+mount 挂载主机目录到本地
+start 启动一个主机
+status 查看主机状态
+stop 停止一个主机
+upgrade 更新主机 Docker 版本为最新
+url 获取主机的 URL
+version 输出 docker-machine 版本信息
+help 输出帮助信息
+每个参数又都是有help的，可以通过
+docker-machine COMMAND --help
+来查看
