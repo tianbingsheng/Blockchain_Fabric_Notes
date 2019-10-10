@@ -1,0 +1,75 @@
+概述
+就目前Docker自身默认的网络来说，单台主机上的不同Docker容器可以借助docker0网桥直接通信，这没毛病，而不同主机上的Docker容器之间只能通过在主机上用映射端口的方法来进行通信，有时这种方式会很不方便，甚至达不到我们的要求，因此位于不同物理机上的Docker容器之间直接使用本身的IP地址进行通信很有必要。再者说，如果将Docker容器起在不同的物理主机上，我们不可避免的会遭遇到Docker容器的跨主机通信问题。本文就来尝试一下。
+
+情景构造
+如下图所示，我们有两个物理主机1和主机2，我们在各自宿主机上启动一个centos容器，启动成功之后，两个容器分别运行在两个宿主机之上，默认的IP地址分配如图所示，这也是Docker自身默认的网络。
+
+两台主机上的容器如何通信？
+
+此时两台主机上的Docker容器如何直接通过IP地址进行通信？
+
+一种直接想到的方案便是通过分别在各自主机中 添加路由 来实现两个centos容器之间的直接通信。我们来试试吧
+
+方案原理分析
+由于使用容器的IP进行路由，就需要避免不同主机上的容器使用了相同的IP，为此我们应该为不同的主机分配不同的子网来保证。于是我们构造一下两个容器之间通信的路由方案，如下图所示。
+
+容器间通信
+
+各项配置如下：
+
+主机1的IP地址为：192.168.145.128
+主机2的IP地址为：192.168.145.129
+为主机1上的Docker容器分配的子网：172.17.1.0/24
+为主机2上的Docker容器分配的子网：172.17.2.0/24
+这样配置之后，两个主机上的Docker容器就肯定不会使用相同的IP地址从而避免了IP冲突。
+
+我们接下来 定义两条路由规则 即可：
+
+所有目的地址为172.17.1.0/24的包都被转发到主机1上
+所有目的地址为172.17.2.0/24的包都被转发到主机2上
+综上所述，数据包在两个容器间的传递过程如下：
+
+从container1 发往 container2 的数据包，首先发往container1的“网关”docker0，然后通过查找主机1的路由得知需要将数据包发给主机2，数据包到达主机2后再转发给主机2的docker0，最后由其将数据包转到container2中；反向原理相同，不再赘述。
+我们心里方案想的是这样，接下来实践一下看看是否可行。
+
+实际试验
+0x01. 分别对主机1和主机2上的docker0进行配置
+编辑主机1上的 /etc/docker/daemon.json 文件，添加内容："bip" : "ip/netmask"
+
+{ "bip", "172.17.1.252/24" }
+编辑主机2上的 /etc/docker/daemon.json 文件，添加内容："bip" : "ip/netmask"
+
+{ "bip", "172.17.2.252/24" }
+0x02. 重启docker服务
+主机1和主机2上均执行如下命令重启docker服务以使修改后的docker0网段生效
+
+systemctl restart docker
+0x03. 添加路由规则
+主机1上添加路由规则如下：
+
+route add -net 172.17.2.0 netmask 255.255.255.0 gw 192.168.145.129
+主机2上添加路由规则如下：
+
+route add -net 172.17.1.0 netmask 255.255.255.0 gw 192.168.145.128
+0x04. 配置iptables规则
+主机1上添加如下规则：
+
+iptables -t nat -F POSTROUTING
+iptables -t nat -A POSTROUTING -s 172.17.1.0/24 ! -d 172.17.0.0/16 -j MASQUERADE
+主机2上添加如下规则：
+
+iptables -t nat -F POSTROUTING
+iptables -t nat -A POSTROUTING -s 172.17.2.0/24 ! -d 172.17.0.0/16 -j MASQUERADE
+0x05. 启动容器
+主机1上启动centos容器：
+
+docker run -it --name container1 centos /bin/bash
+主机2上启动centos容器：
+
+docker run -it --name container2 centos /bin/bash
+0x06. 容器间直接通信
+好了，现在两容器可以互ping了
+
+container1 ping container2
+
+container2 ping container1
