@@ -1,0 +1,135 @@
+1. 容器网络模型
+docker定义了一个非常简单的网络模型，被称为“container network model (CNM)”。
+
+
+CNM
+
+CNM有三要素：
+
+Sandbox: The sandbox perfectly isolates a container from the outside world. No inbound network connection is allowed into the sandboxed container. Yet, it is very unlikely that a container will be of any value in a system if absolutely no communication with it is possible. To work around this, we have element number two, which is the endpoint.
+Endpoint: An endpoint is a controlled gateway from the outside world into the network's sandbox that shields the container. The endpoint connects the network sandbox (but not the container) to the third element of the model, which is the network.
+Network: The network is the pathway that transports the data packets of an instance of communication from endpoint to endpoint, or ultimately from container to container.
+CNM只是定义了一种模型，关于它的一些具体实际应用以及相关特性如下：
+
+Network	Company	Scope	Description
+Bridge	Docker	Local	Simple network based on Linux bridges allowing networking on a single host
+Macvlan	Docker	Local	Configures multiple layer 2 (that is,MAC) addresses on a single physical host interface
+Overlay	Docker	Global	Multinode-capable container network based on Virtual Extensible LAN (VXLan)
+Weave Net	Weaveworks	Global	Simple, resilient, multihost Docker networking
+Contiv Network Plugin	Cisco	Global	Open source container networking
+以上所有不被docker直接支持的网络类型，都可以以插件的形式使用。
+
+2. 桥接网络
+在安装好docker host之后，默认就创建了一个桥接网络，同时还创建了一个主机网络和空网络。使用docker network ls命令可以查看：
+
+[root@node2 ~]# docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+5e159057e92a        bridge              bridge              local
+c2921c2d8a83        host                host                local
+85ba00ab2fed        none                null                local
+使用docker network inspect bridge可以查看该网络的详细情况，主要包括网络驱动类型，网络IP地址范围，当前有哪些容器连接到了该网络，以及各个容器获取的IP地址等。
+使用docker network create命令可以创建一个自定的网络：
+
+[root@node2 ~]# docker network create --driver bridge sample-net
+0b482881387b37702c7e28a14cb20e0b9242baf1c1b72221a7c356decf2bf7a0
+桥接网络的工作原理大致如下：
+
+
+
+eth0为主机的物理网卡地址，docker0为docker host默认创建的桥接网络，默认的容器也都连接到这个网络，并获取相应的网络地址。
+桥接网络有以下一些特性：
+
+一个主机上可以存在多个桥接网络。
+连接到同一个桥接网络的容器，通过IP或者容器名称，可以互相访问。
+两个分别连接到不同桥接网络上的容器之间，默认无法互相访问。
+一个容器可以连接多个桥接网络。
+下面我们举一个例子来验证上面的特性：
+我们将创建5个容器c1-c5，c1、c2连接网络my-network1，c3、c4连接网络my-network2，c5同时连接这两个网络。
+
+[root@node2 ~]# docker container run --name c1 --network my-network1 -d alpine:latest ping 127.0.0.1
+325dcba69349462c0b483d5c21134439d2994cbb4b95a73c507b81025b0bb4ea
+[root@node2 ~]# docker container run --name c2 --network my-network1 -d alpine:latest ping 127.0.0.1
+f865664592ae0a2cae84261d7150984e93d3b64021bf5f80057e922ffdd645fd
+[root@node2 ~]# docker container run --name c3 --network my-network2 -d alpine:latest ping 127.0.0.1
+079a851285047cb949c3406706ff71499b203ed86f3b36d4df518a1ee99f1efb
+[root@node2 ~]# docker container run --name c4 --network my-network2 -d alpine:latest ping 127.0.0.1
+06c792f004281d2147c719ae1ee42cc08805686e55a7201f42b586559c81ee84
+# 我参考书籍上的命令，使用如下命令准备将c5同时连接到两个网络，但最终发现无法生效，c5始终只能连接到一个网络，并且是后出现的--network参数会覆盖前面的。
+# 也就是下面的命令只会让c5连接到my-network2网络。（可能是docker版本不同导致）
+[root@node2 ~]# docker container run --name c5 --network my-network1 --network my-network2 -d alpine:latest ping 127.0.0.1
+5c64d82cab34f42fd8b6b114fa826c088241205869e8609034ab750c75d9ce11
+# 经过查询，发现可以通过如下命令，分成两步，将一个容器连接到两个网络。
+[root@node2 ~]# docker container run --name c5 --network my-network1 -d alpine:latest ping 127.0.0.1
+[root@node2 ~]# docker network connect my-network2 c5
+现在简单进入c5进行验证：
+
+[root@node2 ~]# docker container exec -it c5 /bin/sh
+/ # ping c1
+PING c1 (172.19.0.2): 56 data bytes
+64 bytes from 172.19.0.2: seq=0 ttl=64 time=0.203 ms
+64 bytes from 172.19.0.2: seq=1 ttl=64 time=0.123 ms
+^C
+--- c1 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.123/0.163/0.203 ms
+/ # ping c2
+PING c2 (172.19.0.3): 56 data bytes
+64 bytes from 172.19.0.3: seq=0 ttl=64 time=0.189 ms
+64 bytes from 172.19.0.3: seq=1 ttl=64 time=0.127 ms
+^C
+--- c2 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.127/0.158/0.189 ms
+/ # ping c3
+PING c3 (172.20.0.2): 56 data bytes
+64 bytes from 172.20.0.2: seq=0 ttl=64 time=0.200 ms
+64 bytes from 172.20.0.2: seq=1 ttl=64 time=0.123 ms
+^C
+--- c3 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.123/0.161/0.200 ms
+/ # ping c4
+PING c4 (172.20.0.3): 56 data bytes
+64 bytes from 172.20.0.3: seq=0 ttl=64 time=0.180 ms
+64 bytes from 172.20.0.3: seq=1 ttl=64 time=0.126 ms
+^C
+--- c4 ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.126/0.153/0.180 ms
+可以发现c5与c1-c4都可以连通，c1、c2、c5互通，c3、c4、c5互通，其他的无法互通。
+最后，可以通过如下命令，删除网络：
+docker network rm my-network1
+备注：删除前，必须确认没有容器在使用该网络。
+
+3. 主机网络
+创建容器时，使用主机网络的话，容器将会获取与主机一样的IP地址，一般不推荐使用主机网络。
+docker container run --rm -it --network host alpine:latest /bin/sh
+
+4. 空网络
+有些时候，我们可能出于测试的目的，所需的容器并不需要网络，这时候，可以使用空网络。
+docker container run --rm -it --network none alpine:latest /bin/sh
+
+5. 连接一个已经存在的网络命名空间
+通常来说，每个容器都有自己的network namespace，容器之间的互相访问取决于我们前面提到过的网络设置相关。但还有一种方式，可以让两个容器共用一个网络命名空间，从而达到让这两个容器之间，通过localhost就可以互相访问。具体示例如下：
+
+[root@node2 ~]# docker network create --driver bridge my-net
+3095dc7e2e9e4f52f0e47ad9d4d450478a06946c5353e1d0968e4198424e2c4f
+[root@node2 ~]# docker container run --name my-web --network my-net -d nginx:alpine
+db87165666e901bbe3875f1f236ed22feb5088e93d0e02859897ff8c3c8a3db1
+[root@node2 ~]# docker container run -it --network container:my-web alpine /bin/sh
+/ # wget -O- http://localhost
+Connecting to localhost (127.0.0.1:80)
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+上面的例子中，第二个容器使用了--network container:my-web参数，让这两个容器使用同一个网络命名空间，从而实现类似访问本机服务一样，访问第一个容器的服务。
+在Kubernetes的pod中就使用了这样的特性，以后将会介绍。
+
+6. 网络端口管理
+docker中的端口管理用于，映射主机IP端口与容器内IP端口之间的关系。
+例如：
+docker container run --name my-web1 -d -p 8080:80 nginx:alpine
+-p参数将主机的8080端口映射至容器内的80端口。
+-P(大写)参数随机的将主机端口映射至容器的80端口。
+如果你需要映射udp关系，可以使用类似-p 3000:4321/udp的参数。特别说明的是，如果既需要tcp，也需要udp，你必须单独指定两个参数。
