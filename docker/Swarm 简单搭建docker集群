@@ -1,0 +1,199 @@
+一、什么是Swarm
+
+Swarm这个项目名称特别贴切。在Wiki的解释中，Swarm behavior是指动物的群集行为。比如我们常见的蜂群，鱼群，秋天往南飞的雁群都可以称作Swarm behavior。
+
+
+
+Swarm项目正是这样，通过把多个Docker Engine聚集在一起，形成一个大的docker-engine，对外提供容器的集群服务。同时这个集群对外提供Swarm API，用户可以像使用Docker Engine一样使用Docker集群。
+
+Swarm 特点
+
+ ▲对外以Docker API接口呈现，这样带来的好处是，如果现有系统使用Docker Engine，则可以平滑将Docker Engine切到Swarm上，无需改动现有系统。
+ ▲Swarm对用户来说，之前使用Docker的经验可以继承过来。非常容易上手，学习成本和二次开发成本都比较低。同时Swarm本身专注于Docker集群管理，非常轻量，占用资源也非常少。 *“Batteries included but swappable”，简单说，就是插件化机制，Swarm中的各个模块都抽象出了API，可以根据自己一些特点进行定制实现。
+ ▲Swarm自身对Docker命令参数支持的比较完善，Swarm目前与Docker是同步发布的。Docker的新功能，都会第一时间在Swarm中体现。
+
+Docker自诞生以来，其容器特性以及镜像特性给DevOps爱好者带来了诸多方便。然而在很长的一段时间内，Docker只能在单host上运行，其跨host的部署、运行与管理能力颇受外界诟病。跨host能力的薄弱，直接导致Docker容器与host的紧耦合，这种情况下，Docker容器的灵活性很难令人满意，容器的迁移、分组等都成为很难实现的功能点。
+
+
+Swarm是Docker公司在2014年12月初新发布的容器管理工具。和Swarm一起发布的Docker管理工具还有Machine以及Compose。
+
+Swarm是一套较为简单的工具，用以管理Docker集群，使得Docker集群暴露给用户时相当于一个虚拟的整体。Swarm使用标准的Docker API接口作为其前端访问入口，换言之，各种形式的Docker Client(dockerclient in go, docker_py, docker等)均可以直接与Swarm通信，Swarm几乎全部用Go语言来完成开发。
+
+二、Swarm 关键概念
+
+1）Swarm
+
+集群的管理和编排是使用嵌入到 docker 引擎的 SwarmKit，可以在 docker 初始化时启动 swarm 模式或者加入已存在的 swarm
+
+2）Node
+
+一个节点(node)是已加入到 swarm 的 Docker 引擎的实例 当部署应用到集群，你将会提交服务定义到管理节点，接着 Manager
+
+管理节点调度任务到 worker 节点，manager 节点还执行维护集群的状态的编排和群集管理功能，worker 节点接收并执行来自
+
+manager 节点的任务。通常，manager 节点也可以是 worker 节点，worker 节点会报告当前状态给 manager 节点
+
+3）服务（Service）
+
+服务是要在 worker 节点上要执行任务的定义，它在工作者节点上执行，当你创建服务的时，你需要指定容器镜像
+
+4）任务（Task）
+
+任务是在 docekr 容器中执行的命令，Manager 节点根据指定数量的任务副本分配任务给 worker 节点
+
+——————————————————————————————————–
+
+docker swarm：集群管理，子命令有 init, join, leave, update。（docker swarm –help 查看帮助）
+
+docker service：服务创建，子命令有 create, inspect, update, remove, tasks。（docker service–help 查看帮助）
+
+docker node：节点管理，子命令有 accept, promote, demote, inspect, update, tasks, ls, rm。（docker node –help 查看帮助）
+
+node 是加入到 swarm 集群中的一个 docker 引擎实体，可以在一台物理机上运行多个 node，node 分为：
+
+manager nodes，也就是管理节点
+
+worker nodes，也就是工作节点
+
+1）manager node 管理节点：执行集群的管理功能，维护集群的状态，选举一个 leader 节点去执行调度任务。
+
+2）worker node 工作节点：接收和执行任务。参与容器集群负载调度，仅用于承载 task。
+
+3）service 服务：一个服务是工作节点上执行任务的定义。创建一个服务，指定了容器所使用的镜像和容器运行的命令。
+
+service 是运行在 worker nodes 上的 task 的描述，service 的描述包括使用哪个 docker 镜像，以及在使用该镜像的容器中执行什么命令。
+
+
+4）task 任务：一个任务包含了一个容器及其运行的命令。task 是 service 的执行实体，task 启动 docker 容器并在容器中执行任务。
+
+
+
+三、环境准备
+
+2.1、所用版本如下
+
+centos 7
+
+docker  Docker version 18.03.1-ce, build 9ee9f40
+
+swaram 18.03.1-ce
+
+这里用两台机器来搭建,分别如下:
+
+swarm01  192.168.182.110
+
+swarm02  192.168.182.111
+
+2.2、安装docker
+
+每台机器上都需要安装Docker
+
+yum search docker
+yum install -y docker
+systemctl start docker
+systemctl status docker
+2.3、加入开机自启
+
+systemctl enable docker
+2.4、更改docker的镜像源
+
+安装好之后，更改docker的镜像源,修改或新增 /etc/docker/daemon.json
+
+vi /etc/docker/daemon.json
+修改成如下:
+{
+"registry-mirrors": ["http://hub-mirror.c.163.com"]
+}
+或
+{ 
+"registry-mirrors": ["https://docker.mirrors.ustc.edu.cn"] 
+}
+然后重启
+
+systemctl restart docker.service
+2.5、修改主机名
+
+然后分别修改两台机器的主机名，更改成swarm01,swarm02
+
+hostnamectl set-hostname swarm01
+2.6、关闭SELinux
+
+[root@swaram01 ~]# getenforce
+Disabled
+[root@swaram01 ~]# /usr/sbin/sestatus -v
+SELinux status:                 disabled
+修改
+
+vi /etc/selinux/config
+将SELINUX=enforcing改为SELINUX=disabled 
+
+注意: 设置后需要重启才能生效
+
+2.7、编辑hosts文件
+
+vi /etc/hosts
+设置两台主机的对应关系
+
+192.168.182.110 swarm01
+192.168.182.111 swarm02
+2.8、关闭防火墙
+
+systemctl stop firewalld.service #停止firewall
+systemctl disable firewalld.service #禁止firewall开机启动
+2.9、修改docker监听端口
+
+Swarm是通过监听2375端口进行通信的，所以在使用Swarm进行集群管理之前，需要设置一下2375端口的监听。所有主机节点docker开启2375监听，docker版本不同，配置方式不一样
+
+vim  /lib/systemd/system/docker.service
+在ExecStart加入:
+
+-H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock
+
+
+3.0、重启docker服务
+
+systemctl daemon-reload    ##使配置文件生效
+systemctl restart docker
+
+四、Swarm安装和集群创建
+
+3.1、Swarm镜像下载
+
+在两台机器上分别安装Swarm
+
+[root@swarm01 fendo]# docker pull swarm
+Using default tag: latest
+latest: Pulling from library/swarm
+dd72058debf0: Pull complete 
+cb543654edaf: Pull complete 
+44212202dc6d: Pull complete 
+Digest: sha256:c97a27b020ae4439432c842769d8e731661d5987962e33004114e4aba9d03b4c
+Status: Downloaded newer image for swarm:latest
+[root@swarm01 fendo]# docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+swarm               latest              59c0df55980b        6 months ago        15.8MB
+3.2、初始化Swarm
+
+[root@swarm01 fendo]# docker swarm init --advertise-addr  192.168.182.110
+Swarm initialized: current node (zeisswb5lm92gj8rsng9pxzxd) is now a manager.
+To add a worker to this swarm, run the following command:
+    docker swarm join --token SWMTKN-1-043bhcd0voztnsui79l1rg0pyu4xq1q5x188jeyvppplt2rvnk-6diwivwlc14aipcji90tms4ua 192.168.182.110:2377
+To add a manager to this swarm, run 'docker swarm join-token manager' and follow the instructions.
+上面命令执行后，该机器自动加入到swarm集群。这个会创建一个集群token，获取全球唯一的 token，作为集群唯一标识。后续将其他节点加入集群都会用到这个token值。
+
+其中，--advertise-addr参数表示其它swarm中的worker节点使用此ip地址与manager联系。命令的输出包含了其它节点如何加入集群的命令。
+
+3.3、添加集群节点
+
+然后在swaram02机器上执行以下命令
+
+[root@swaram02 fendo]# docker swarm join --token SWMTKN-1-5vqq9j2bwq5rllsubg49cs16440v2ixkngvf25e5688i86c8qf-eawa9w8wf2m5mu9e6ovmhjuyy 192.168.182.110:2377
+
+加入到集群中去:
+
+3.4、查看集群节点
+
+[root@swarm01 fendo]# docker node list
+ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
+j4o241rnbz6rq2k6204s635lb     swaram02            Ready               Active                                  18.03.1-ce
+k1itretyzjwzskezlkhdc7wkj *   swarm01             Ready               Active              Leader              18.03.1-ce
