@@ -1,0 +1,73 @@
+我学习Docker Machine首先肯定思考为什么要使用它？我直接上服务器拉取运行镜像跑服务也很快啊！为什么需要这个Docker Machine呢？
+首先学习docker我们体会到了容器的好处，保证了线上线下环境的一致性，但是我们确实能发现从镜像的下载到容器的运行，我们用了很多的命令去执行，当我们在本地笔记本完成了测试之后，我们把这些容器部署到生产环境时，我们还是需要执行很多脚本，这确实是一项复杂的工作！
+而使用Docker Machine我们可以在本地部署相应的环境就同时完成远程docker主机环境的部署，可以节省下很多重复的劳动，减少容错率。
+
+默认本地主机安装好docker：
+一.下载docker-machine：
+curl -L https://github.com/docker/mac…uname -s-uname -m >/tmp/docker-machine && install /tmp/docker-machine /usr/local/bin/docker-machine
+
+查看是否成功：
+
+[root@localhost ~]# docker-machine -v
+docker-machine version 0.13.0, build 9ba6da9
+1
+2
+二.ssh无密码登录
+
+本地主机ip：192.168.1.9
+远程主机ip:192.168.1.10
+
+[root@localhost ~]# ssh-keygen
+[root@localhost ~]# ssh-copy-id 192.168.1.10
+三.开启machine通讯端口
+
+[root@localhost ~]# firewall-cmd --add-port=2376/tcp --permanent
+[root@localhost ~]# firewall-cmd --reload
+
+四.创建docker远程主机命名farHost
+
+[root@localhost~]# docker-machine create -d generic –generic-ip-address=192.168.1.10 farHost
+Running pre-create checks…
+Creating machine…
+(swarm-master) No SSH key specified. Assuming an existing key at the default location.
+Waiting for machine to be running, this may take a few minutes…
+Detecting operating system of created instance…
+Waiting for SSH to be available…
+Detecting the provisioner…
+Provisioning with centos…
+Running…
+[root@node1 ~]# docker-machine ls
+NAME ACTIVE DRIVER STATE URL SWARM DOCKER ERRORS
+farHost- generic Running tcp://192.168.1.10:2376 v17.12.1-ce
+
+
+五.改变docker环境变量
+
+[root@node1 ~]# docker-machine env host1
+export DOCKER_TLS_VERIFY="1"    //使用tls协议
+export DOCKER_HOST="tcp://192.168.1.10:2376"   //远程主机docker的ip地址及端口
+export DOCKER_CERT_PATH="/root/.docker/machine/machines/farHost" 指明了我们docker客户端在认证的过程中使用证书的路径 
+export DOCKER_MACHINE_NAME="farHost"//远程主机docker名
+# Run this command to configure your shell: 
+# eval $(docker-machine env farHost)
+
+把farHost的环境变量配置到当前的shell中
+
+[root@localhost~]# eval $(docker-machine env farHost)
+1
+六.运行容器查看是否同步
+
+[root@localhost~]# docker run -d busybox
+[root@localhost~]# docker-machine ssh host1
+[root@farHost~]# docker image ls
+REPOSITORY TAG IMAGE ID CREATED SIZE
+busybox latest f6e427c148a7 6 days ago 1.15MB
+[root@farHost~]# docker ps 
+CONTAINER ID IMAGE COMMAND CREATED STATUS PORTS NAMES
+8d9b5005a264 busybox "sh" 17 seconds ago Up 16 seconds ago modest_joliot
+[root@farHost~]# exit
+[root@localhost~]# docker ps
+CONTAINER ID IMAGE COMMAND CREATED STATUS PORTS NAMES
+8d9b5005a264 busybox "sh" 57seconds ago Up 16 seconds ago modest_joliot
+
+发现本地主机和远程主机同时都运行了一样的busybox的容器，即使我们有再多的机器需要部署生产环境，我们也只需要 do once就可以了。
