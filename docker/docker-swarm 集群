@@ -1,0 +1,246 @@
+Swarm是Docker官方提供的一款集群管理工具，其主要作用是把若干台Docker主机抽象为一个整体，并且通过一个入口统一管理这些Docker主机上的各种Docker资源。Swarm和Kubernetes比较类似，但是更加轻，具有的功能也较kubernetes更少一些。
+
+　　Swarm的基本架构如下图所示，
+
+
+
+　　这个图作为一个整体实际上都处于一个所谓的集群中，它可能对应了一到多台的实际服务器。每台服务器上都装有Docker并且开启了基于HTTP的DockerAPI。这个集群中有一个SwarmManager的管理者，用来管理集群中的容器资源。管理者的管理对象不是服务器层面而是集群层面的，也就是说通过Manager，我们只能笼统地向集群发出指令而不能具体到某台具体的服务器上要干什么（这也是Swarm的根本所在）。至于具体的管理实现方式，Manager向外暴露了一个HTTP接口，外部用户通过这个HTTP接口来实现对集群的管理。对于稍微大一点的集群，最好是拿出一台实际的服务器作为专门的管理者，作为学习而言，也可以把管理者和被管理者放在一台服务器上。
+
+　　下面就来讲一下如何简单地通过swarm搭建一个集群
+
+■　　安装与简单集群建立
+
+　　●  开启带有HTTPAPI的Docker服务
+　　我的虚拟机环境是CentOS7的，Docker则是通过yum来安装的。如要使用swarm，则必须让Docker开放其HTTP的API。默认情况下这个API没有开启，而开启此API需要在启动时加入-H参数。
+
+　　网上有的人说运行/usr/bin/docker的时候直接加，有的又说修改/etc/sysconfig/docker之类的文件，都不适用于我，可能是由于系统以及docker本身的版本的缘故。而我的正确姿势是修改/lib/systemd/system/docker.service这个文件中的参数，并且用systemctl来管理启动docker服务。
+
+　　上述这个文件的ExecStart很明显是指出了docker的启动参数，在第一行的后面直接加上：
+
+-H tcp://0.0.0.0:2375
+ 　　（有些文章也指出对于CentOS6还需要加上-H unix:///var/run/docker.sock）修改完成之后别忘了运行一下systemctl daemon-reload刷新配置
+
+　　然后再重启/启动Docker服务，此时通过netstat -ntlp可以看到一个新开的2375端口，此乃默认的DockerHTTPAPI的端口。如果是一个集群则需要注意集群中所有相关的主机都记得要启动带这个端口的Docker服务。
+
+　　●  没有正确退出swarm集群时引发的问题
+　　退出swarm集群用的命令是docker swarm leave，然而存在这样一种情况：没有完全退出swarm集群时就关掉了Docker服务。随后网络环境变化了（主机的IP变了）。此时若再systemctl start docker将会报错，通过systemctl status docker -l可以查看完整的报错信息，提示找不到老IP地址云云。其实这是启动swarm时报的错误。
+
+　　google了一下之后，发现比较方便的解决办法是手动修改/var/lib/docker/swarm下面的docker-state.json和state.json两个文件。把这两个json文件中原来的老地址都改成现在的新地址。应该就可以顺利启动了。
+
+　　●  创建小集群
+　　前面提到的Swarm Manager，其本身其实是一个容器，其他一些swarm的角色基本上也通过容器的方式来实现。Swarm源于Docker而基于Docker。但是Docker在刚安装的时候是没有swarm支持的，需要我们docker pull swarm去DockerHub里下载swarm的镜像。这个镜像本身不大，最新版的大概15MB左右，一会儿就下载完了。
+
+　　当然，如果是集群的话那么需要在所有相关的主机上都pull到这个镜像。
+
+　　第一步，建立一个集群并且取得集群标志。Swarm支持自动发现功能，如果在一个网络中存在多个集群，那么就需要每个集群都有一个区别于其他集群的标志来防止混淆。这个标志就是所谓的集群token，在集群创立之初就被指定且无法更改。在被选为管理者角色的服务器上运行命令：
+
+docker run --rm swarm create
+ 　　这个命令返回中带有一串token字符串(以dfb4fb3a8767835d799ce429fb4d7c4d为例)，这个信息需要记录下来，之后所有操作中都需要用到它来指出我们对哪个集群操作。而且目前还没找到如何查看一个既存集群的token，所以一定要记录一下。。
+
+　　创建集群过后实际上并没有真的增加什么Docker资源，仍然是一个空的集群。
+
+ 
+
+　　第二步，创建集群获取到集群token之后，目前我们手上拿着的还是一个空集群，接下来就往里面加入节点主机吧。加入节点主机的方法是再各个节点主机上运行这条命令：
+
+docker run -d swarm join --addr=192.168.1.102:2375 token://dfb4fb3a8767835d799ce429fb4d7c4d
+　　其中--addr参数指出的是本主机的Docker服务的socket，自然，IP要和各个主机自身的IP一致。另外我尝试了一下，若在本机指定addr为localhost或者0.0.0.0之类的IP，最终是无法正常工作的。所以即便是在管理者本机，也要老老实实写出IP。完成后可以在当前主机上docker ps看一下，应该可以看到一个在运行中的swarm容器。这个容器扮演的角色就是向上和管理者容器通信，向下管理所在本机的docker资源，所谓被管理主机的代理。
+
+　　创建完后，可以通过
+
+docker run -d swarm list token://dfb4fb3a8767835d799ce429fb4d7c4d
+ 
+
+　　来查看这个指定的集群（由token指出）中存在哪些join进来的节点。需要注意的是，swarm join命令只是简单的加入集群的声明，swarm并不会去验证给出的地址和端口是否真的可以访问到一个Docker服务。对于没有发现正常Docker服务的节点，将置状态为Pending而不是Healthy，这个状态以及其他节点相关信息怎么看下面会说。
+
+ 
+
+ 　　第三步，开启管理者容器。上面建立了集群框架，并且往集群中加入了join节点（即被管理主机的代理），但是还没有出现管理者容器（管理主机的代理）。创建管理者容器的方法是在管理者主机上：
+
+docker run -d -p 8888:2375 swarm manage token://dfb4fb3a8767835d799ce429fb4d7c4d
+ 
+
+　　同样，docker ps之后可以看到管理容器。-p表名管理者容器做了一个端口映射。因为2375端口在本机上已经被Docker进程占用（当然启动时指定的端口不是默认的2375就另当别论了），而管理容器暴露的这个端口要提供出来，实现外界对集群的管理，所以做了一个端口映射。这个8888,也可以换成其他任何合理的端口号。
+
+　　有了管理容器，并且管理容器给出了8888端口作为管理的入口，我们就可以运行以下这些命令了：
+
+docker -H 192.168.1.101:8888 info
+docker -H 127.0.0.1:8888 ps
+docker -H 192.168.1.101:8888 images
+ 
+
+　　由于这个8888端口就可以看做是一个网络中的普通端口，在本机上访问的话自然IP写127.0.0.1也是可以的。但是注意不能写成localhost，不然会报错。。
+
+　　这三条命令，去掉-H参数的话就是一般的docker用来查看信息的命令。加上-H之后，比如-H 192.168.1.101:8888之后，其意义就变成了，查看一个集群的相关信息。这个集群是192.168.1.101的8888端口对应的管理容器所对应的那个集群。
+
+　　通过这几条命令呈现出来的docker资源如容器和镜像是不强调具体处于那台主机上的，这就使得集群的概念得以发扬光大。另外通过这个socket得到的集群的信息会把swarm本身除外。比如目前这个状态通过-H xxx ps看到的容器列表应该是空的。因为我们还没有让集群运行任何容器。但是docker ps会有swarm的容器显示出来。如果想在-H的时候（所谓集群视图）也看到swarm容器信息可以用ps -a。
+
+　　顺便，info命令的结果和普通的docker info命令结果不太一样，最主要的是有了nodes这个字段。这个字段包含了各个节点的信息，包括前面提到的节点状态等信息。
+
+ 
+
+■　　集群简单使用
+
+　　下面正式使用集群来跑个容器试试看。其实和原生docker命令相比，就是多了个-H参数来指明一个集群管理入口而已：
+
+docker -H 127.0.0.1:8888 run -d -p 10022:22 --name swarmtest tomcatssh:v1
+ 
+
+　　tomcatssh是我本地一个自定义的镜像，和docker run类似的，其他的很多命令如docker start/stop/rm等等也都可以通过集群管理的入口来对集群做出。
+
+　　如果我们的集群中有多态机器用于跑容器，即有多个被管理主机的话，那么通过这样的方式启动起来的容器会通过一定的策略选择一台合适的主机作为真实的跑容器的平台来运行容器。策略分成好多种，默认是spread（这个字段在docker -H xxx info中的Strategy中有显示），具体是指当集群要运行一个新的容器，将会根据算法和收集到的各个被管理主机CPU，内存等信息进行智能的选择，使得各个运行容器的主机尽量均衡。
+
+　　既然能够做到自动选择一台主机作为容器运行的寄托，那么自然也可以恢复手动模式。这在swarm中就是所谓的filter功能。filter可以分成多种，
+
+　　●  约束过滤器（Constraint Filter）
+　　约束过滤器通过启动Docker守护进程时指定的标签label来查找合适的被管理主机。label是通过启动参数的方式在启动时被固定的：
+
+--label datacenter=us-east1
+ 
+
+　　这个参数加入到之前说过的docker.service，或者手动加在启动docker的命令后面等等。
+
+　　而在启动容器时通过这样的方式来指定过滤器：
+
+docker -H 127.0.0.1:8888 run -e constraint:datacenter==us-east1 -d --name www-use1 nginx
+ 
+
+　　-e后面跟过滤器，constraint指出了约束过滤器，后面的约束标签支持==，!=两种判断，后面可以写字符串和正则表达式如us-east*。
+
+　　●  亲和过滤器（Affinity Filter）
+　　亲和过滤器以现有的某个容器为基准，让新容器运行在/不在已经运行了某个现有容器的主机上运行。
+
+docker run -d -e --name db affinity:container!=www-use1 mysql
+ 
+
+　　比如上面这条命令说的就是要根据mysql镜像启动一个名为db的容器，但是这个容器不能在已经预www-use1容器运行的主机上运行。
+
+　　●  端口过滤器
+　　端口过滤器严格来说并不是一个真的过滤器。。它只是在启动容器时通过-p参数来申请对一个主机端口的使用权。如果一台主机上这个端口正在被使用那么自然是不能把容器放到这个主机上运行的。
+
+　　
+
+　　除了上述三种，过滤器还有很多，可以通过swarm manage --help或者去官网查。总的来说，过滤器是一种主动指定主机的手段，配合swarm自身的自动分配机制，可以灵活地确定一台主机来运行容器。
+
+　　如果当前集群中swarm找不到一台符合条件的主机来运行容器，那么swarm会明确指出哪个过滤器条件得不到满足，从而启动容器失败。
+
+　　
+
+========================================================================================================
+
+　　意识到，上面的swarm介绍居然是老版本的！orz
+
+　　现在的Docker（1.12版本以后的）都是带了原生的swarm命令，也就是说不需要不需要进行复杂的swarm create之类的操作，仅需要简单几条命令即可。
+
+　　【http://blog.csdn.net/candcplusplus/article/details/53836703】
+
+　　■　　新版本上构建swarm集群和节点
+
+　　启动一个swarm集群十分简单，只需要执行
+
+docker swarm init --listen-addr 192.168.1.112:8888 --advertise-addr 192.168.1.112
+ 　　两个参数也很好懂，--listen-addr指出的是这个集群暴露给外界调用的HTTPAPI的socket地址。这个就是类似于上面老版本中swarm manage时-p指定的端口。添加--advertise-addr参数的原因是大多数情况下我们的主机都不只有一张网卡。而一个swarm集群需要辨明集群所在的子网络是哪张网卡的。
+
+　　另外需要注意，在新版本的swarm下，manage节点自身也作为被worker节点的一个，自动加入建立起来的swarm集群中。
+
+　　命令运行成功的话会提示一串类似于这样的信息：
+
+    docker swarm join \
+    --token SWMTKN-1-2vndbzp43eff6vaiornhbafew242arz29qngrql0slqg4zmi4j-1hpha7vnelkbg4gg1d293qus4 \
+    192.168.1.112:8888
+ 
+
+　　这是在说明，通网络下的被管理主机上，只要运行这串命令就可以将该主机加入集群。如果不小心忘了这个命令那么可以在manager上运行docker swarm join-token manager命令，随时调取出这部分信息来看。我特意多建了两台虚拟机，装上docker作为被管理机器。为方便下面称管理者角色的机器为A，另两台为B、C。
+
+　　在B、C上分别运行上面这个命令（有时可以在命令后加上--listen-addr参数，倒不是说被管理主机也需要监听，而是存在一些将被管理主机升级为管理主机的场景）后，在A上执行命令：
+
+docker node ls
+ 
+
+　　可以查看swarm各个节点的情况。同样的docker info 中也会多出Swarm: True以及一系列相关字段。docker node ls的返回类似于：
+
+ID                           HOSTNAME               STATUS  AVAILABILITY  MANAGER STATUS
+2hzmnrb0vddow7jlr7zdx86s0    localhost.localdomain  Ready   Active
+444w5u9i9tf8h1dmvp404tluy *  localhost.localdomain  Ready   Active        Leader
+89z0l64mitjyhwijj6o0ps3m3    localhost.localdomain  Ready   Active        
+ 
+
+　　节点id后的星号据说表示的是你当前连接着的节点。
+
+　　于是，我们就得到了一个由三个节点组成的swarm小集群。在这个集群中有一个manager节点和三个worker节点（别忘了manager本身自动作为worker一员加入集群）。
+
+　　相比较于之前还需要手动pull镜像，然后敲好多docker run命令，新版本下整合到docker内部的swarm明显就要好多了。然而我们现在也只是搭建了一个小集群，并没有实质内容在其中运行。
+
+ 
+
+　　■　　构建服务
+
+　　说到实质内容，由于swarm会自动地做一些如负载均衡，保持容器副本数量等工作，所以swarm对外提供的和k8s类似也是属于一个“服务”的概念。
+
+docker service create --replicas 1 --name swarmtest tomcatssh:v1
+ 
+
+　　通过上面这个命令可以创建一个服务（tomcatssh是我自己的镜像）。--replicas参数指出希望保持这个服务始终有多少容器在运行，name参数指定的是服务的名字而非容器的名字，虽然两者最终会很像。
+
+　　创建完成的服务可以在manage节点上通过docker service ls命令查看，可能replicas是0/1，这表示服务仍在创建过程中。稍等一会儿就会变成1/1了。更加详细的信息，则可以通过docker service inspect --pretty swarmtest来查看。pretty参数使输出更加友好，不加此参数的输出是JSON格式的。
+
+　　同时也可以顺便到各台worker上去docker ps看下容器的运行情况。一般情况下再manager上会出现一个正在运行的容器，如果你停掉或者删掉这个容器，那么swarm会自动重启它。
+
+　　进一步的docker service ps swarmtest，可以查看swarmtest这个Service的各个容器到底在哪个节点上运行且运行状态如何。比如我刚才建立了一个replicas为3的swarmtest服务，docker service ps swarmtest后的结果是：
+
+ID                         NAME             IMAGE         NODE                   DESIRED STATE  CURRENT STATE             ERROR
+a6ubuiush8l821rncxkd231le   \_ swarmtest.1  tomcatssh:v1  localhost.localdomain  Shutdown       Rejected 8 minutes ago    "No such image: tomcatssh:v1"
+3sk5cowp4bve0zklvydwdgwba  swarmtest.2      tomcatssh:v1  localhost.localdomain  Running        Running 6 minutes ago
+8tku51hecc6pza21urs5oz5zk  swarmtest.3      tomcatssh:v1  localhost.localdomain  Running        Preparing 32 seconds ago  
+ 
+
+　　可以看到，在要求启动3个容器作为swarmtest服务的支撑时，swarm分别试图在集群（僵硬的是我集群中三个主机的主机名都是localhost.localdomain。。。意思一下吧，总之知道这里虽然写的一样但是里面是三台不同的机子）中去启动swarmtest.1，swarmtest.2以及swarmtest.3三个容器，可以看到swarm.1视图运行的主机上没有tomcatssh:v1镜像因此启动失败，swarm.2启动成功，开始运行；swarm.3仍在准备中。可以想到的是，因为swarm.1已经启动失败，所以swarm会继续寻找机会启动它，尽量保证启动服务时replicas为3的要求。
+
+　　
+
+　　另外服务还有一个重要的功能就是伸缩。通过命令：
+
+docker service scale swarmtest=5
+　　可以将服务现有的replica为3的状态扩展到5，期间已经启动的容器不受影响。
+
+ 
+
+　　对于不需要的服务，可以docker service rm swarmtest来删除。删除后所有节点上的相关容器都会被删除。
+
+　　对于一个服务来说，常会遇到的一件事是滚动更新，swarm为我们封装了命令docker service update。只要给这个命令加上--image参数指定一个新镜像，那么该服务中的所有容器都会被更新成这个新镜像的内容。但为了保证可用性，必然不能同时更新所有容器。swarm就内置了一个滚动更新的机制，可以让我们依次更新各个容器从而避免更新期间的不可用。在docker service create 的时候可以指出--upgrade-delay参数，表示更新服务对应的任务或一组任务之间的时间间隔。时间间隔用数字和时间单位表示，m 表示分，h 表示时，所以 10m30s 表示 10 分 30 秒的延时。另外--update-parallelism参数标志配置调度器每次同时更新的最大任务数量，默认情况下此参数值为1，即一个一个容器地更新。
+
+　　在有了滚动更新的保障之后，再来执行docker service update，比如docker service update --image tomcatssh:v2 swarmtest，则swarm会自动地去按照滚动更新的策略更新各个容器（实际上就是把旧容器关停并启动新容器）。在更新过程中docker service ps swarmtest可以查看更新的实时情况，最终更新完成后这条命令看到的结果应该是类似于这样子的：
+
+复制代码
+ID                         NAME             IMAGE         NODE                   DESIRED STATE  CURRENT STATE            ERROR
+5v3purlp28bg93ngkmp9x1dy9  swarmtest.1      tomcatssh:v2  worker1                Running        Running 45 seconds ago
+055xxourdnlsylmnjgwvs718t   \_ swarmtest.1  tomcatssh:v1  worker1                Shutdown       Shutdown 49 seconds ago
+4b1am22wx1w0abo3ylxt7qcfe  swarmtest.2      tomcatssh:v2  localhost.localdomain  Running        Running 11 seconds ago
+euyu700dikpqmgzq8hyoijvdq   \_ swarmtest.2  tomcatssh:v1  worker2                Shutdown       Shutdown 7 minutes ago
+efgfvp2wd0x655dy136qrt47y  swarmtest.3      tomcatssh:v2  worker2                Running        Running 7 minutes ago
+1m7muogeuitfsllhcyu942ac1   \_ swarmtest.3  tomcatssh:v1  localhost.localdomain  Shutdown       Shutdown 32 seconds ago  
+复制代码
+ 
+
+　　过程中，swarm先Shutdown了一台节点上的老容器并且启动新容器，如果新容器启动成功后就再等10秒（创建service时指定的参数），然后开始操作下一台。另外，如果操作一台的过程中发生错误导致新容器没有正确运行起来，那么更新任务会到此暂停，不会继续往下。docker service update后面的--update-failure-action参数可以指定是否要跳过错误。
+
+　　■　　节点管理
+
+　　之前所有的演示中，三个节点始终都保持着Active的可用性。Swarm管理器会自动根据算法将任务（启停容器等）分配给Active的节点。
+
+　　除了Active，其他常见的可用性状态还有Drain，处于Drain的节点不会被分配新任务，而且当前运行着的容器也都会被停止，swarm管理器则会在其他节点上新建这些任务。
+
+　　运行命令
+
+docker node update --availability drain worker2
+ 
+
+　　可以手动将某个节点的可用性设置为Drain，比如这里将名为worker2的节点设置为drain了之后，可以看到在docker service ps swarmtest中出现的新信息：
+
+anrqum9q6zg0jw12ds5jnloyb  swarmtest.3      tomcatssh:v2  localhost.localdomain  Running        Running 9 seconds ago
+efgfvp2wd0x655dy136qrt47y   \_ swarmtest.3  tomcatssh:v2  worker2                Shutdown       Shutdown 7 minutes ago   
+ 
+
+　　由于worker2不再接受任务并关停现有任务，所以swarmtest.3这个容器被转移到了localhost（即manage节点所在）。docker node ls或者docker node inspect --pretty worker2就可以看到起可用性的变更了。
+
+　　如果使用docker node update再次将worker2的可用性设置为active，那么worker2节点就可以再次获取任务了（刚才被转移到localhost上的任务是不会有再转回来的，所以worker2的任务只有在接下来的分配中获得）。总的来说，一个处于Active状态的节点在这些情况下可能收到新任务：当服务规模扩大时；滚动更新时；其他节点被设置为Drain而本节点需要担当时；其他节点上任务启动失败时。
