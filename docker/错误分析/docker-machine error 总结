@@ -1,0 +1,14 @@
+错误：
+Error with pre-create check: "VBoxManage not found. Make sure VirtualBox is installed and VBoxManage is in the path"
+
+安装执行：
+brew cask install virtualbox
+
+安装过程出现错误：
+curl: (56) LibreSSL SSL_read: SSL_ERROR_SYSCALL, errno 54
+Error: Download failed on Cask 'virtualbox' with message: Download failed: https://download.virtualbox.org/virtualbox/6.0.12/VirtualBox-6.0.12-133076-OSX.dmg
+
+解决执行：
+curl "https://nodejs.org/dist/latest/node-${VERSION:-$(wget -qO- https://nodejs.org/dist/latest/ | sed -nE 's|.*>node-(.*)\.pkg</a>.*|\1|p')}.pkg" > "$HOME/Downloads/node-latest.pkg" && sudo installer -store -pkg "$HOME/Downloads/node-latest.pkg" -target "/"
+
+Done
